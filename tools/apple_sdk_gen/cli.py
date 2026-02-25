@@ -72,6 +72,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Generate .swiftinterface files",
     )
     parser.add_argument(
+        "--include-libc",
+        action="store_true",
+        help="Download and install C stdlib/POSIX headers from Apple OSS",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="count",
         default=0,

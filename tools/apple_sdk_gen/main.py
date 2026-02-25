@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .assembler.sdk_layout import assemble_sdk
-from .config import PLATFORM_CONFIGS
+from .config import PLATFORM_CONFIGS, tbd_targets_for_platform
 from .crawler.cache import CacheDB
 from .crawler.client import APIClient
 from .crawler.framework import crawl_framework_symbols
@@ -15,6 +15,7 @@ from .crawler.symbol import parse_symbol
 from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
+from .supplements.libc import install_libc_headers
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,17 @@ async def run(args: argparse.Namespace) -> None:
                 frameworks=platform_frameworks,
                 include_swift=args.include_swift,
             )
+
+            # Install C stdlib/POSIX headers if requested
+            if args.include_libc:
+                print(f"Installing libc headers...", file=sys.stderr)
+                tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
+                install_libc_headers(
+                    sdk_root=sdk_path,
+                    sdk_version=args.sdk_version,
+                    tbd_targets=tbd_targets,
+                    cache_dir=cache_dir,
+                )
 
             print(f"SDK generated at: {sdk_path}", file=sys.stderr)
 
