@@ -16,6 +16,7 @@ from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
 from .supplements.libc import install_libc_headers
+from .supplements.libcxx import install_libcxx_headers
 
 logger = logging.getLogger(__name__)
 
@@ -134,11 +135,22 @@ async def run(args: argparse.Namespace) -> None:
                 include_swift=args.include_swift,
             )
 
+            tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
+
             # Install C stdlib/POSIX headers if requested
             if args.include_libc:
-                print(f"Installing libc headers...", file=sys.stderr)
-                tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
+                print("Installing libc headers...", file=sys.stderr)
                 install_libc_headers(
+                    sdk_root=sdk_path,
+                    sdk_version=args.sdk_version,
+                    tbd_targets=tbd_targets,
+                    cache_dir=cache_dir,
+                )
+
+            # Install C++ standard library headers if requested
+            if args.include_cxx:
+                print("Installing libc++ headers...", file=sys.stderr)
+                install_libcxx_headers(
                     sdk_root=sdk_path,
                     sdk_version=args.sdk_version,
                     tbd_targets=tbd_targets,

@@ -77,6 +77,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Download and install C stdlib/POSIX headers from Apple OSS",
     )
     parser.add_argument(
+        "--include-cxx",
+        action="store_true",
+        help="Download and install C++ standard library headers from LLVM",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="count",
         default=0,
