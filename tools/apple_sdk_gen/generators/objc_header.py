@@ -15,7 +15,53 @@ logger = logging.getLogger(__name__)
 COMPAT_PREAMBLE = """\
 #pragma once
 
-#import <Foundation/NSObjCRuntime.h>
+/* ── Base types ──────────────────────────────────────────────────────
+   Use real ObjC runtime headers when present (--include-libc installs
+   them from apple-oss-distributions/objc4).  Otherwise provide minimal
+   inline definitions so the stub headers compile standalone.
+   ─────────────────────────────────────────────────────────────────── */
+#ifndef _APPLE_SDK_GEN_COMPAT_TYPES_
+#define _APPLE_SDK_GEN_COMPAT_TYPES_ 1
+
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+
+#if __has_include(<objc/objc.h>)
+#  import <objc/objc.h>
+#else
+typedef bool BOOL;
+#  define YES ((BOOL)1)
+#  define NO  ((BOOL)0)
+typedef struct objc_class *Class;
+typedef struct objc_object *id;
+typedef struct objc_selector *SEL;
+typedef id (*IMP)(id, SEL, ...);
+#  ifndef nil
+#    define nil ((id)0)
+#  endif
+#  ifndef Nil
+#    define Nil ((Class)0)
+#  endif
+#endif
+
+#if __has_include(<objc/NSObjCRuntime.h>)
+#  import <objc/NSObjCRuntime.h>
+#else
+#  if __LP64__
+typedef long NSInteger;
+typedef unsigned long NSUInteger;
+#  else
+typedef int NSInteger;
+typedef unsigned int NSUInteger;
+#  endif
+#  define NSIntegerMax    __LONG_MAX__
+#  define NSIntegerMin    (-__LONG_MAX__-1L)
+#  define NSUIntegerMax   (2UL*__LONG_MAX__+1UL)
+#  define NSNotFound      NSIntegerMax
+#endif
+
+#endif /* _APPLE_SDK_GEN_COMPAT_TYPES_ */
 
 /* --- Availability --- */
 #ifndef API_AVAILABLE
