@@ -266,58 +266,165 @@ SWIFT_OVERLAY_FRAMEWORKS: list[str] = [
     "_WorkoutKit_SwiftUI",
 ]
 
-# Per-platform framework exclusions.  These ARE real .framework bundles
-# but only on certain platforms — e.g. AppKit exists on macOS, not iOS.
+# ── Shared exclusion categories ──
+
+# Deprecated/legacy iOS-only frameworks
+_DEPRECATED_MOBILE: set[str] = {
+    "AssetsLibrary", "BusinessChat", "iAd", "Twitter",
+}
+
+# DriverKit sub-frameworks (macOS: System/DriverKit/ path, not System/Library/Frameworks/)
+_DRIVERKIT_SUB: set[str] = {
+    "AudioDriverKit", "BlockStorageDeviceDriverKit",
+    "HIDDriverKit", "MIDIDriverKit", "NetworkingDriverKit",
+    "PCIDriverKit", "SCSIControllerDriverKit",
+    "SCSIPeripheralsDriverKit", "SerialDriverKit",
+    "USBDriverKit", "USBSerialDriverKit",
+}
+
+# Developer tools (in Xcode Developer dir, not in SDK System/Library/Frameworks/)
+_DEV_TOOLS: set[str] = {
+    "Xcode", "XcodeKit", "XCTest", "XCUIAutomation",
+}
+
+# Per-platform framework exclusions.  Covers doc-API frameworks,
+# supplementary/companion frameworks, and private overlay frameworks
+# that should not appear in a given platform's SDK.
 PLATFORM_EXCLUDED_MODULES: dict[str, set[str]] = {
+    # ── iOS (device) ─────────────────────────────────────────────
     "ios": {
         # macOS-only
         "AppKit", "Quartz",
-        # DriverKit (macOS system extensions)
-        "AudioDriverKit", "BlockStorageDeviceDriverKit", "DriverKit",
-        "HIDDriverKit", "MIDIDriverKit", "NetworkingDriverKit",
-        "PCIDriverKit", "SCSIControllerDriverKit",
-        "SCSIPeripheralsDriverKit", "SerialDriverKit",
-        "USBDriverKit", "USBSerialDriverKit",
-        # Developer tools (not in device SDKs)
-        "Xcode", "XCTest", "XCUIAutomation",
         # watchOS-only
         "WatchKit",
+        # DriverKit top-level
+        "DriverKit",
         # macOS-only or not a .framework on iOS
         "ShaderGraph", "EndpointSecurity", "MediaExtension",
         "ServiceManagement", "Spatial", "StoreKitTest",
         "WalletOrders", "WalletPasses",
-        # dylib, not a .framework (usr/lib/libAppleArchive.tbd)
+        # dylib, not a .framework
         "AppleArchive",
-    },
-    "watchos": {
-        "AppKit", "Quartz", "UIKit", "IOKit", "CoreServices",
-        "AudioDriverKit", "BlockStorageDeviceDriverKit", "DriverKit",
-        "HIDDriverKit", "MIDIDriverKit", "NetworkingDriverKit",
-        "PCIDriverKit", "SCSIControllerDriverKit",
-        "SCSIPeripheralsDriverKit", "SerialDriverKit",
-        "USBDriverKit", "USBSerialDriverKit",
-        "Xcode", "XCTest", "XCUIAutomation",
-    },
+    } | _DRIVERKIT_SUB | _DEV_TOOLS,
+
+    # ── macOS ────────────────────────────────────────────────────
+    "macos": {
+        # iOS/mobile-only
+        "HealthKitUI", "IdentityLookupUI", "MarketplaceKit",
+        "MessageUI", "MobileCoreServices", "UIKit", "hvf",
+        # Not in macOS SDK System/Library/Frameworks
+        "EndpointSecurity", "ShaderGraph", "Spatial",
+        "StoreKitTest", "WalletOrders",
+        # dylib, not a .framework
+        "AppleArchive",
+        # iOS-only overlay frameworks
+        "_AdAttributionKit_StoreKit", "_AppIntents_UIKit",
+        "_CoreLocationUI_SwiftUI", "_CoreNFC_UIKit",
+        "_DeviceDiscoveryUI_SwiftUI", "_GameController_SwiftUI",
+        "_GroupActivities_UIKit", "_HomeKit_SwiftUI",
+        "_MarketplaceKit_UIKit", "_PermissionKit_UIKit",
+        "_RelevanceKit_MapKit", "_SecureElementCredential_SwiftUI",
+        "_SecureElementCredential_UIKit",
+    } | _DEPRECATED_MOBILE | _DRIVERKIT_SUB | _DEV_TOOLS,
+
+    # ── tvOS ─────────────────────────────────────────────────────
     "tvos": {
         "AppKit", "Quartz", "WatchKit", "IOKit", "CoreServices",
-        "AudioDriverKit", "BlockStorageDeviceDriverKit", "DriverKit",
-        "HIDDriverKit", "MIDIDriverKit", "NetworkingDriverKit",
-        "PCIDriverKit", "SCSIControllerDriverKit",
-        "SCSIPeripheralsDriverKit", "SerialDriverKit",
-        "USBDriverKit", "USBSerialDriverKit",
-        "Xcode", "XCTest", "XCUIAutomation",
-    },
+        "DriverKit",
+        # Not in tvOS SDK
+        "ActivityKit", "AdServices", "ARKit", "ImageCaptureCore",
+        "MarketplaceKit", "MediaExtension", "MessageUI",
+        "NearbyInteraction", "PassKit", "SafetyKit", "SensorKit",
+        "ShaderGraph", "Spatial", "Speech", "StoreKitTest",
+        "TelephonyMessagingKit", "WebKit", "WidgetKit",
+        "WiFiAware", "WorkoutKit",
+        # Supplementary/companion not on tvOS
+        "HealthKitUI", "MobileCoreServices",
+        "OpenAL", "StickerFoundation", "StickerKit",
+        # dylib
+        "AppleArchive",
+        # Overlay frameworks not on tvOS
+        "_AdAttributionKit_StoreKit", "_CoreLocationUI_SwiftUI",
+        "_CoreNFC_UIKit", "_DeviceActivity_SwiftUI",
+        "_ManagedAppDistribution_SwiftUI", "_MarketplaceKit_UIKit",
+        "_PassKit_SwiftUI", "_PermissionKit_SwiftUI",
+        "_PermissionKit_UIKit", "_PhotosUI_SwiftUI",
+        "_PhotosUI_WidgetKit", "_QuickLook_SwiftUI",
+        "_SecureElementCredential_SwiftUI", "_SecureElementCredential_UIKit",
+        "_Translation_SwiftUI", "_WebKit_SwiftUI", "_WorkoutKit_SwiftUI",
+    } | _DEPRECATED_MOBILE | _DRIVERKIT_SUB | _DEV_TOOLS,
+
+    # ── watchOS ──────────────────────────────────────────────────
+    "watchos": {
+        "AppKit", "Quartz", "UIKit", "IOKit", "CoreServices",
+        "DriverKit",
+        # Not in watchOS SDK
+        "ActivityKit", "AdServices", "ARKit", "AudioToolbox",
+        "CoreMediaIO", "CreateML", "DeviceDiscoveryUI", "hvf",
+        "IdentityLookup", "IdentityLookupUI", "IntentsUI",
+        "LinkPresentation", "MarketplaceKit", "MediaAccessibility",
+        "MediaExtension", "MessageUI",
+        "MetalPerformancePrimitives", "MetalPerformanceShaders",
+        "Photos", "RealityFoundation", "RealityKit",
+        "SensorKit", "ShaderGraph", "SharedWithYou", "SharedWithYouCore",
+        "Spatial", "StoreKitTest", "TelephonyMessagingKit",
+        "VideoToolbox", "Vision", "WalletPasses", "WiFiAware",
+        # Supplementary/companion not on watchOS
+        "HealthKitUI", "MobileCoreServices",
+        "OpenAL", "StickerFoundation", "StickerKit",
+        # dylib
+        "AppleArchive",
+        # Overlay frameworks not on watchOS
+        "_AdAttributionKit_StoreKit", "_CoreNFC_UIKit",
+        "_DeviceActivity_SwiftUI", "_DeviceDiscoveryUI_SwiftUI",
+        "_GameController_SwiftUI", "_GroupActivities_UIKit",
+        "_ManagedAppDistribution_SwiftUI", "_MarketplaceKit_UIKit",
+        "_PermissionKit_SwiftUI", "_PermissionKit_UIKit",
+        "_Photos_AppIntents", "_PhotosUI_WidgetKit",
+        "_QuickLook_SwiftUI", "_RealityKit_SwiftUI",
+        "_SecureElementCredential_SwiftUI", "_SecureElementCredential_UIKit",
+        "_Translation_SwiftUI", "_WebKit_SwiftUI",
+    } | _DEPRECATED_MOBILE | _DRIVERKIT_SUB | _DEV_TOOLS,
+
+    # ── visionOS ─────────────────────────────────────────────────
+    "visionos": {
+        "AppKit", "Quartz", "WatchKit",
+        # Not in visionOS SDK
+        "ActivityKit", "DeviceDiscoveryUI", "DockKit",
+        "FamilyControls", "hvf", "ManagedSettings",
+        "MarketplaceKit", "MediaExtension",
+        "ProximityReader", "RoomPlan", "SensorKit",
+        "ShaderGraph", "Spatial", "StoreKitTest",
+        # Supplementary not on visionOS
+        "MobileCoreServices", "OpenAL",
+        # dylib
+        "AppleArchive",
+        # Overlay frameworks not on visionOS
+        "_AdAttributionKit_StoreKit", "_CoreLocationUI_SwiftUI",
+        "_CoreNFC_UIKit", "_DeviceActivity_SwiftUI",
+        "_DeviceDiscoveryUI_SwiftUI", "_MarketplaceKit_UIKit",
+        "_SecureElementCredential_SwiftUI", "_SecureElementCredential_UIKit",
+        "_WorkoutKit_SwiftUI",
+    } | _DEPRECATED_MOBILE | _DRIVERKIT_SUB | _DEV_TOOLS,
 }
 
-# Simulator-only exclusions (hardware-only frameworks not in simulator SDKs)
+# ── Simulator-only exclusions ────────────────────────────────────
 _SIM_ONLY_EXCLUDED: set[str] = {
+    # Hardware-only frameworks
     "CoreMediaIO", "DockKit", "ThreadNetwork",
     "StickerFoundation", "StickerKit",
+    # Frameworks not in iOS Simulator SDK
+    "_ManagedAppDistribution_SwiftUI",
+    "Assignables", "Cinematic", "CreateML",
+    "JournalingSuggestions", "LightweightCodeRequirements",
+    "MediaSetup", "MetalFX", "MLCompute",
 }
 PLATFORM_EXCLUDED_MODULES["ios-simulator"] = PLATFORM_EXCLUDED_MODULES["ios"] | _SIM_ONLY_EXCLUDED
-PLATFORM_EXCLUDED_MODULES["tvos-simulator"] = PLATFORM_EXCLUDED_MODULES["tvos"]
-PLATFORM_EXCLUDED_MODULES["watchos-simulator"] = PLATFORM_EXCLUDED_MODULES["watchos"]
-PLATFORM_EXCLUDED_MODULES["visionos-simulator"] = set()
+PLATFORM_EXCLUDED_MODULES["tvos-simulator"] = PLATFORM_EXCLUDED_MODULES["tvos"] | _SIM_ONLY_EXCLUDED | {
+    "MetalPerformanceShadersGraph",  # not in tvOS Simulator SDK
+}
+PLATFORM_EXCLUDED_MODULES["watchos-simulator"] = PLATFORM_EXCLUDED_MODULES["watchos"] | _SIM_ONLY_EXCLUDED
+PLATFORM_EXCLUDED_MODULES["visionos-simulator"] = PLATFORM_EXCLUDED_MODULES["visionos"] | _SIM_ONLY_EXCLUDED
 
 
 # Known framework re-export relationships

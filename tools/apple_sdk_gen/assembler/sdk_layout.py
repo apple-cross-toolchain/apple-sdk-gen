@@ -8,6 +8,7 @@ from ..config import (
     COMPANION_FRAMEWORKS,
     FRAMEWORK_NAME_MAPPINGS,
     PLATFORM_CONFIGS,
+    PLATFORM_EXCLUDED_MODULES,
     REEXPORTS,
     SUPPLEMENTARY_FRAMEWORKS,
     SWIFT_OVERLAY_FRAMEWORKS,
@@ -74,6 +75,7 @@ def assemble_sdk(
 
     # TBD targets for this platform
     tbd_targets = tbd_targets_for_platform(platform_key, sdk_version)
+    excluded = PLATFORM_EXCLUDED_MODULES.get(platform_key, set())
 
     # Generate each framework
     for fw_name, symbols in frameworks.items():
@@ -93,16 +95,19 @@ def assemble_sdk(
 
         # Emit TBD-only stubs for companion frameworks
         for companion in COMPANION_FRAMEWORKS.get(mapped_name, []):
-            _assemble_tbd_only_framework(sdk_root, companion, tbd_targets)
+            if companion not in excluded:
+                _assemble_tbd_only_framework(sdk_root, companion, tbd_targets)
 
     # Emit TBD-only stubs for supplementary frameworks (no doc API entry)
     for supp_name in SUPPLEMENTARY_FRAMEWORKS:
-        _assemble_tbd_only_framework(sdk_root, supp_name, tbd_targets)
+        if supp_name not in excluded:
+            _assemble_tbd_only_framework(sdk_root, supp_name, tbd_targets)
 
     # Generate TBD-only overlay frameworks for SwiftUI integration
     if include_swift:
         for overlay_name in SWIFT_OVERLAY_FRAMEWORKS:
-            _assemble_tbd_only_framework(sdk_root, overlay_name, tbd_targets)
+            if overlay_name not in excluded:
+                _assemble_tbd_only_framework(sdk_root, overlay_name, tbd_targets)
 
     logger.info("Assembled SDK at %s (%d frameworks)", sdk_root, len(frameworks))
     return sdk_root
