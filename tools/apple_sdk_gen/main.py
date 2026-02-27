@@ -7,7 +7,12 @@ import sys
 from pathlib import Path
 
 from .assembler.sdk_layout import assemble_sdk
-from .config import PLATFORM_CONFIGS, tbd_targets_for_platform
+from .config import (
+    FRAMEWORK_NAME_MAPPINGS,
+    PLATFORM_CONFIGS,
+    PLATFORM_EXCLUDED_MODULES,
+    tbd_targets_for_platform,
+)
 from .crawler.cache import CacheDB
 from .crawler.client import APIClient
 from .crawler.framework import crawl_framework_symbols
@@ -15,8 +20,13 @@ from .crawler.symbol import parse_symbol
 from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
+from .supplements.commoncrypto import install_commoncrypto_headers
 from .supplements.libc import install_libc_headers
 from .supplements.libcxx import install_libcxx_headers
+from .supplements.platform_headers import install_platform_headers
+from .supplements.swift_shims import install_swift_shims
+from .supplements.system_libs import install_system_lib_stubs
+from .supplements.system_modulemaps import install_system_modulemaps
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +127,13 @@ async def run(args: argparse.Namespace) -> None:
             )
 
             # Filter symbols by availability
+            excluded = PLATFORM_EXCLUDED_MODULES.get(platform_key, set())
             platform_frameworks: dict[str, list[Symbol]] = {}
             for fw_name, symbols in framework_symbols.items():
+                # Check both the doc API name and the mapped framework name
+                mapped_name = FRAMEWORK_NAME_MAPPINGS.get(fw_name, fw_name)
+                if fw_name in excluded or mapped_name in excluded:
+                    continue
                 available = [
                     sym for sym in symbols
                     if is_available(sym, cfg.name, args.sdk_version)
@@ -137,6 +152,20 @@ async def run(args: argparse.Namespace) -> None:
 
             tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
 
+            # Always generate system library TBD stubs (libz, libsqlite3, etc.)
+            print("Installing system library stubs...", file=sys.stderr)
+            install_system_lib_stubs(
+                sdk_root=sdk_path,
+                tbd_targets=tbd_targets,
+                include_swift=args.include_swift,
+            )
+
+            # CommonCrypto headers (always useful, small) — must run before
+            # system modulemaps so the CommonCrypto directory exists for the
+            # conditional modulemap check.
+            print("Installing CommonCrypto headers...", file=sys.stderr)
+            install_commoncrypto_headers(sdk_path)
+
             # Install C stdlib/POSIX headers if requested
             if args.include_libc:
                 print("Installing libc headers...", file=sys.stderr)
@@ -147,6 +176,14 @@ async def run(args: argparse.Namespace) -> None:
                     cache_dir=cache_dir,
                 )
 
+                # Platform headers (TargetConditionals, Block.h, dlfcn.h, math.h)
+                print("Installing platform headers...", file=sys.stderr)
+                install_platform_headers(sdk_path, platform_key)
+
+                # System module maps (Darwin, Dispatch, ObjectiveC, os)
+                print("Installing system module maps...", file=sys.stderr)
+                install_system_modulemaps(sdk_path)
+
             # Install C++ standard library headers if requested
             if args.include_cxx:
                 print("Installing libc++ headers...", file=sys.stderr)
@@ -154,6 +191,15 @@ async def run(args: argparse.Namespace) -> None:
                     sdk_root=sdk_path,
                     sdk_version=args.sdk_version,
                     tbd_targets=tbd_targets,
+                    cache_dir=cache_dir,
+                )
+
+            # Install Swift shim headers if Swift is enabled
+            if args.include_swift:
+                print("Installing Swift shim headers...", file=sys.stderr)
+                install_swift_shims(
+                    sdk_root=sdk_path,
+                    sdk_version=args.sdk_version,
                     cache_dir=cache_dir,
                 )
 

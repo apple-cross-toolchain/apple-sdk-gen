@@ -4,14 +4,20 @@ These headers populate ``<sdk>/usr/include/`` so that code using
 ``#include <stdio.h>``, ``#include <pthread.h>``, ``#import <objc/runtime.h>``,
 ``#include <dispatch/dispatch.h>`` etc. can compile against the generated SDK.
 
-Six GitHub repositories are used:
+Nine GitHub repositories are used:
 
 - **apple-oss-distributions/Libc** – stdio, stdlib, string, math, …
 - **apple-oss-distributions/xnu** – sys/, mach/, machine/, os/ (partial), …
-- **apple-oss-distributions/libpthread** – pthread.h, sched.h
+- **apple-oss-distributions/libpthread** – pthread.h, sched.h, sys/_pthread/
 - **apple-oss-distributions/objc4** – objc/objc.h, objc/runtime.h, …
 - **apple-oss-distributions/libdispatch** – dispatch/, os/object.h, …
 - **apple-oss-distributions/libplatform** – os/lock.h, os/once.h, …
+- **apple-oss-distributions/Libinfo** – grp.h, pwd.h, netdb.h, rpc/
+- **apple-oss-distributions/zlib** – zlib.h, zconf.h
+- **apple-oss-distributions/CarbonHeaders** – MacTypes.h, Endian.h
+
+Stub headers are generated for POSIX/C functions not in any OSS repo
+(dlfcn.h, spawn.h, notify.h, etc.).
 
 Matching TBD stubs are generated for libSystem.B, libobjc.A, and libdispatch.
 """
@@ -37,6 +43,9 @@ VERSION_TAGS: dict[str, dict[str, str]] = {
         "objc4": "objc4-906.2",
         "libdispatch": "libdispatch-1462.0.4",
         "libplatform": "libplatform-306.0.1",
+        "Libinfo": "Libinfo-542.40.3",
+        "zlib": "zlib-76",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
     "15.2": {
         "Libc": "Libc-1534.81.1",
@@ -45,38 +54,53 @@ VERSION_TAGS: dict[str, dict[str, str]] = {
         "objc4": "objc4-906.2",
         "libdispatch": "libdispatch-1462.80.1",
         "libplatform": "libplatform-306.0.1",
+        "Libinfo": "Libinfo-542.40.3",
+        "zlib": "zlib-76",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
     "16.0": {
         "Libc": "Libc-1583.40.7",
         "xnu": "xnu-10063.61.3",
-        "libpthread": "libpthread-519.40.4",
+        "libpthread": "libpthread-519",
         "objc4": "objc4-912.7",
         "libdispatch": "libdispatch-1477.100.9",
         "libplatform": "libplatform-316.100.10",
+        "Libinfo": "Libinfo-554",
+        "zlib": "zlib-77",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
     "17.0": {
-        "Libc": "Libc-1583.100.4",
+        "Libc": "Libc-1583.60.2",
         "xnu": "xnu-10063.121.3",
-        "libpthread": "libpthread-519.100.3",
+        "libpthread": "libpthread-519",
         "objc4": "objc4-928.3",
         "libdispatch": "libdispatch-1504.60.7",
         "libplatform": "libplatform-340.60.2",
+        "Libinfo": "Libinfo-564",
+        "zlib": "zlib-83",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
     "18.0": {
-        "Libc": "Libc-1583.100.4",
+        "Libc": "Libc-1669.0.4",
         "xnu": "xnu-11215.1.10",
-        "libpthread": "libpthread-519.100.3",
+        "libpthread": "libpthread-519.101.1",
         "objc4": "objc4-940.4",
         "libdispatch": "libdispatch-1521.100.8",
         "libplatform": "libplatform-349.140.6",
+        "Libinfo": "Libinfo-583.0.1",
+        "zlib": "zlib-91",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
     "18.2": {
-        "Libc": "Libc-1583.100.4",
+        "Libc": "Libc-1698.100.8",
         "xnu": "xnu-11215.61.5",
-        "libpthread": "libpthread-519.100.3",
+        "libpthread": "libpthread-519.120.4",
         "objc4": "objc4-951.1",
         "libdispatch": "libdispatch-1542.0.4",
         "libplatform": "libplatform-359.60.3",
+        "Libinfo": "Libinfo-592",
+        "zlib": "zlib-96",
+        "CarbonHeaders": "CarbonHeaders-18.1",
     },
 }
 
@@ -93,17 +117,47 @@ _LIBC_HEADERS = [
 ]
 
 _XNU_HEADERS = [
-    # BSD sys/ headers
+    # BSD sys/ headers (kept as directory — close enough to Xcode)
     ("bsd/sys/", "sys/"),
     ("bsd/machine/", "machine/"),
     ("bsd/arm/", "arm/"),
     ("bsd/i386/", "i386/"),
-    ("bsd/net/", "net/"),
-    ("bsd/netinet/", "netinet/"),
-    ("bsd/netinet6/", "netinet6/"),
-    # EXTERNAL_HEADERS — mach/, architecture/ etc.
-    ("EXTERNAL_HEADERS/", ""),
-    # osfmk mach headers
+    # ── bsd/net/ — only the 8 headers Xcode ships ──
+    ("bsd/net/ethernet.h", "net/ethernet.h"),
+    ("bsd/net/if.h", "net/if.h"),
+    ("bsd/net/if_dl.h", "net/if_dl.h"),
+    ("bsd/net/if_types.h", "net/if_types.h"),
+    ("bsd/net/if_var.h", "net/if_var.h"),
+    ("bsd/net/if_var_status.h", "net/if_var_status.h"),
+    ("bsd/net/net_kev.h", "net/net_kev.h"),
+    ("bsd/net/pfkeyv2.h", "net/pfkeyv2.h"),
+    # ── bsd/netinet/ — only the 11 headers Xcode ships ──
+    ("bsd/netinet/icmp6.h", "netinet/icmp6.h"),
+    ("bsd/netinet/in.h", "netinet/in.h"),
+    ("bsd/netinet/in_pcb.h", "netinet/in_pcb.h"),
+    ("bsd/netinet/in_systm.h", "netinet/in_systm.h"),
+    ("bsd/netinet/ip.h", "netinet/ip.h"),
+    ("bsd/netinet/ip6.h", "netinet/ip6.h"),
+    ("bsd/netinet/ip_icmp.h", "netinet/ip_icmp.h"),
+    ("bsd/netinet/tcp.h", "netinet/tcp.h"),
+    ("bsd/netinet/tcp_timer.h", "netinet/tcp_timer.h"),
+    ("bsd/netinet/tcp_var.h", "netinet/tcp_var.h"),
+    ("bsd/netinet/udp.h", "netinet/udp.h"),
+    # ── bsd/netinet6/ — only the 3 headers Xcode ships ──
+    ("bsd/netinet6/in6.h", "netinet6/in6.h"),
+    ("bsd/netinet6/ipsec.h", "netinet6/ipsec.h"),
+    ("bsd/netinet6/scope6_var.h", "netinet6/scope6_var.h"),
+    # ── EXTERNAL_HEADERS — only what Xcode actually installs ──
+    ("EXTERNAL_HEADERS/architecture/", "architecture/"),
+    ("EXTERNAL_HEADERS/mach-o/", "mach-o/"),
+    ("EXTERNAL_HEADERS/AssertMacros.h", "AssertMacros.h"),
+    ("EXTERNAL_HEADERS/Availability.h", "Availability.h"),
+    ("EXTERNAL_HEADERS/AvailabilityInternal.h", "AvailabilityInternal.h"),
+    ("EXTERNAL_HEADERS/AvailabilityMacros.h", "AvailabilityMacros.h"),
+    ("EXTERNAL_HEADERS/AvailabilityVersions.h", "AvailabilityVersions.h"),
+    ("EXTERNAL_HEADERS/stddef.h", "stddef.h"),
+    ("EXTERNAL_HEADERS/stdint.h", "stdint.h"),
+    # osfmk mach headers (kept as directory — close to Xcode)
     ("osfmk/mach/", "mach/"),
     ("bsd/sys/_types/", "sys/_types/"),
     ("bsd/i386/_types.h", "i386/_types.h"),
@@ -116,6 +170,8 @@ _LIBPTHREAD_HEADERS = [
     ("include/pthread/", "pthread/"),
     ("include/pthread.h", "pthread.h"),
     ("include/sched.h", "sched.h"),
+    ("include/sys/_pthread/", "sys/_pthread/"),
+    ("include/sys/qos.h", "sys/qos.h"),
 ]
 
 _OBJC4_HEADERS = [
@@ -141,6 +197,29 @@ _LIBDISPATCH_HEADERS = [
 _LIBPLATFORM_HEADERS = [
     # os/ headers (lock.h, once.h, etc.)
     ("include/os/", "os/"),
+]
+
+_LIBINFO_HEADERS = [
+    # POSIX user/group/network lookups
+    ("lookup.subproj/grp.h", "grp.h"),
+    ("lookup.subproj/pwd.h", "pwd.h"),
+    ("lookup.subproj/netdb.h", "netdb.h"),
+    ("gen.subproj/ifaddrs.h", "ifaddrs.h"),
+    ("membership.subproj/membership.h", "membership.h"),
+    ("membership.subproj/ntsid.h", "ntsid.h"),
+    # RPC headers
+    ("rpc.subproj/", "rpc/"),
+]
+
+_ZLIB_HEADERS = [
+    ("zlib/zlib.h", "zlib.h"),
+    ("zlib/zconf.h", "zconf.h"),
+]
+
+_CARBONHEADERS = [
+    ("MacTypes.h", "MacTypes.h"),
+    ("Endian.h", "Endian.h"),
+    ("ConditionalMacros.h", "ConditionalMacros.h"),
 ]
 
 
@@ -170,6 +249,12 @@ def install_libc_headers(
     _extract_repo("objc4", tags["objc4"], _OBJC4_HEADERS, usr_include, cache_dir)
     _extract_repo("libdispatch", tags["libdispatch"], _LIBDISPATCH_HEADERS, usr_include, cache_dir)
     _extract_repo("libplatform", tags["libplatform"], _LIBPLATFORM_HEADERS, usr_include, cache_dir)
+    _extract_repo("Libinfo", tags["Libinfo"], _LIBINFO_HEADERS, usr_include, cache_dir)
+    _extract_repo("zlib", tags["zlib"], _ZLIB_HEADERS, usr_include, cache_dir)
+    _extract_repo("CarbonHeaders", tags["CarbonHeaders"], _CARBONHEADERS, usr_include, cache_dir)
+
+    # Generate stub POSIX/C headers not available from Apple OSS
+    _generate_posix_stubs(usr_include)
 
     # Generate TBD stubs for system libraries
     _generate_tbd_stubs(sdk_root, tbd_targets)
@@ -236,6 +321,274 @@ def _extract_repo(
                 dst.write_bytes(zf.read(member))
 
     logger.debug("Extracted headers from %s-%s", repo, tag)
+
+
+def _generate_posix_stubs(usr_include: Path) -> None:
+    """Generate minimal stub headers for POSIX/C headers not in Apple OSS repos.
+
+    Three patterns are used:
+    - Compiler-provided: delegates to the compiler's built-in via #include_next
+    - POSIX wrappers: includes from a subdirectory already extracted
+    - System API declarations: minimal types/functions for compilation
+    """
+    stubs: dict[str, str] = {}
+
+    # ── Compiler-provided headers (delegate to clang built-in) ──
+    for name in ("complex.h", "fenv.h", "float.h", "setjmp.h", "tgmath.h"):
+        stubs[name] = (
+            f"/* SDK stub — delegates to compiler built-in */\n"
+            f"#include_next <{name}>\n"
+        )
+
+    # ── spawn.h (POSIX process spawning) ──
+    stubs["spawn.h"] = """\
+#ifndef _SPAWN_H_
+#define _SPAWN_H_
+#include <sys/types.h>
+#include <signal.h>
+
+typedef struct _posix_spawnattr *posix_spawnattr_t;
+typedef struct _posix_spawn_file_actions *posix_spawn_file_actions_t;
+
+int posix_spawn(pid_t * __restrict, const char * __restrict,
+    const posix_spawn_file_actions_t *, const posix_spawnattr_t * __restrict,
+    char *const __argv[ __restrict], char *const __envp[ __restrict]);
+int posix_spawnp(pid_t * __restrict, const char * __restrict,
+    const posix_spawn_file_actions_t *, const posix_spawnattr_t * __restrict,
+    char *const __argv[ __restrict], char *const __envp[ __restrict]);
+int posix_spawn_file_actions_init(posix_spawn_file_actions_t *);
+int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *);
+int posix_spawn_file_actions_addclose(posix_spawn_file_actions_t *, int);
+int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t * __restrict,
+    int, const char * __restrict, int, mode_t);
+int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *, int, int);
+int posix_spawnattr_init(posix_spawnattr_t *);
+int posix_spawnattr_destroy(posix_spawnattr_t *);
+int posix_spawnattr_setflags(posix_spawnattr_t *, short);
+int posix_spawnattr_getflags(const posix_spawnattr_t * __restrict,
+    short * __restrict);
+int posix_spawnattr_setsigdefault(posix_spawnattr_t * __restrict,
+    const sigset_t * __restrict);
+int posix_spawnattr_setsigmask(posix_spawnattr_t * __restrict,
+    const sigset_t * __restrict);
+
+#define POSIX_SPAWN_RESETIDS        0x01
+#define POSIX_SPAWN_SETPGROUP       0x02
+#define POSIX_SPAWN_SETSIGDEF       0x04
+#define POSIX_SPAWN_SETSIGMASK      0x08
+#define POSIX_SPAWN_SETEXEC         0x40
+#define POSIX_SPAWN_START_SUSPENDED  0x80
+#define POSIX_SPAWN_CLOEXEC_DEFAULT 0x4000
+#endif /* _SPAWN_H_ */
+"""
+
+    # ── dlfcn.h (POSIX dynamic loader) ──
+    stubs["dlfcn.h"] = """\
+#ifndef _DLFCN_H_
+#define _DLFCN_H_
+
+#define RTLD_LAZY       0x1
+#define RTLD_NOW        0x2
+#define RTLD_LOCAL       0x4
+#define RTLD_GLOBAL      0x8
+#define RTLD_NOLOAD     0x10
+#define RTLD_NODELETE   0x80
+#define RTLD_FIRST      0x100
+#define RTLD_DEFAULT    ((void *)(long)-2)
+#define RTLD_NEXT       ((void *)(long)-1)
+#define RTLD_SELF       ((void *)(long)-3)
+#define RTLD_MAIN_ONLY  ((void *)(long)-5)
+
+extern void *dlopen(const char *__path, int __mode);
+extern void *dlsym(void *__handle, const char *__symbol);
+extern int   dlclose(void *__handle);
+extern char *dlerror(void);
+extern int   dladdr(const void *, void *);
+#endif /* _DLFCN_H_ */
+"""
+
+    # ── iconv.h ──
+    stubs["iconv.h"] = """\
+#ifndef _ICONV_H_
+#define _ICONV_H_
+#include <sys/types.h>
+
+typedef void *iconv_t;
+
+iconv_t iconv_open(const char *, const char *);
+size_t  iconv(iconv_t, char ** __restrict, size_t * __restrict,
+              char ** __restrict, size_t * __restrict);
+int     iconv_close(iconv_t);
+#endif /* _ICONV_H_ */
+"""
+
+    # ── nl_types.h (POSIX message catalogs) ──
+    stubs["nl_types.h"] = """\
+#ifndef _NL_TYPES_H_
+#define _NL_TYPES_H_
+
+typedef int nl_catd;
+typedef int nl_item;
+
+#define NL_SETD  1
+#define NL_CAT_LOCALE  1
+
+nl_catd catopen(const char *, int);
+char   *catgets(nl_catd, int, int, const char *);
+int     catclose(nl_catd);
+#endif /* _NL_TYPES_H_ */
+"""
+
+    # ── ucontext.h (deprecated POSIX contexts) ──
+    stubs["ucontext.h"] = """\
+#ifndef _UCONTEXT_H_
+#define _UCONTEXT_H_
+#include <sys/ucontext.h>
+#endif /* _UCONTEXT_H_ */
+"""
+
+    # ── execinfo.h (backtrace) ──
+    stubs["execinfo.h"] = """\
+#ifndef _EXECINFO_H_
+#define _EXECINFO_H_
+#include <sys/types.h>
+
+int  backtrace(void **, int);
+char **backtrace_symbols(void *const *, int);
+void backtrace_symbols_fd(void *const *, int, int);
+#endif /* _EXECINFO_H_ */
+"""
+
+    # ── copyfile.h ──
+    stubs["copyfile.h"] = """\
+#ifndef _COPYFILE_H_
+#define _COPYFILE_H_
+#include <sys/types.h>
+
+typedef unsigned int copyfile_flags_t;
+typedef struct _copyfile_state *copyfile_state_t;
+
+#define COPYFILE_ACL        (1<<0)
+#define COPYFILE_STAT       (1<<1)
+#define COPYFILE_XATTR      (1<<2)
+#define COPYFILE_DATA       (1<<3)
+#define COPYFILE_SECURITY   (COPYFILE_STAT | COPYFILE_ACL)
+#define COPYFILE_METADATA   (COPYFILE_SECURITY | COPYFILE_XATTR)
+#define COPYFILE_ALL        (COPYFILE_METADATA | COPYFILE_DATA)
+#define COPYFILE_RECURSIVE  (1<<15)
+#define COPYFILE_CLONE       (1<<24)
+#define COPYFILE_CLONE_FORCE (1<<25)
+
+int copyfile(const char *from, const char *to, copyfile_state_t state,
+             copyfile_flags_t flags);
+copyfile_state_t copyfile_state_alloc(void);
+int copyfile_state_free(copyfile_state_t);
+#endif /* _COPYFILE_H_ */
+"""
+
+    # ── removefile.h ──
+    stubs["removefile.h"] = """\
+#ifndef _REMOVEFILE_H_
+#define _REMOVEFILE_H_
+#include <sys/types.h>
+
+typedef struct _removefile_state *removefile_state_t;
+typedef unsigned int removefile_flags_t;
+
+#define REMOVEFILE_RECURSIVE          (1<<0)
+#define REMOVEFILE_KEEP_PARENT        (1<<1)
+#define REMOVEFILE_SECURE_1_PASS      (1<<2)
+#define REMOVEFILE_SECURE_7_PASS      (1<<3)
+#define REMOVEFILE_SECURE_35_PASS     (1<<4)
+#define REMOVEFILE_CROSS_MOUNT        (1<<5)
+
+int removefile(const char *path, removefile_state_t state,
+               removefile_flags_t flags);
+removefile_state_t removefile_state_alloc(void);
+int removefile_state_free(removefile_state_t);
+#endif /* _REMOVEFILE_H_ */
+"""
+
+    # ── sandbox.h ──
+    stubs["sandbox.h"] = """\
+#ifndef _SANDBOX_H_
+#define _SANDBOX_H_
+
+#define SANDBOX_NAMED           0x0001
+#define SANDBOX_NAMED_EXTERNAL  0x0003
+
+int sandbox_init(const char *profile, uint64_t flags, char **errorbuf);
+void sandbox_free_error(char *errorbuf);
+int sandbox_check(pid_t pid, const char *operation, int type, ...);
+#endif /* _SANDBOX_H_ */
+"""
+
+    # ── notify.h ──
+    stubs["notify.h"] = """\
+#ifndef _NOTIFY_H_
+#define _NOTIFY_H_
+#include <sys/types.h>
+#include <stdint.h>
+#include <mach/message.h>
+
+#define NOTIFY_STATUS_OK          0
+#define NOTIFY_STATUS_INVALID_NAME 1
+#define NOTIFY_STATUS_NOT_AUTHORIZED 2
+
+uint32_t notify_post(const char *name);
+uint32_t notify_register_check(const char *name, int *out_token);
+uint32_t notify_register_signal(const char *name, int sig, int *out_token);
+uint32_t notify_register_mach_port(const char *name, mach_port_t *notify_port,
+                                   int flags, int *out_token);
+uint32_t notify_register_dispatch(const char *name, int *out_token,
+    void *queue, void (^handler)(int token));
+uint32_t notify_check(int token, int *check);
+uint32_t notify_get_state(int token, uint64_t *state);
+uint32_t notify_set_state(int token, uint64_t state);
+uint32_t notify_cancel(int token);
+#endif /* _NOTIFY_H_ */
+"""
+
+    # ── notify_keys.h ──
+    stubs["notify_keys.h"] = """\
+#ifndef _NOTIFY_KEYS_H_
+#define _NOTIFY_KEYS_H_
+/* Common Darwin notification keys */
+#define kNotifyClockSet "com.apple.system.clock_set"
+#define kNotifyTimeZoneChange "com.apple.system.timezone"
+#endif /* _NOTIFY_KEYS_H_ */
+"""
+
+    # ── xattr_flags.h ──
+    stubs["xattr_flags.h"] = """\
+#ifndef _XATTR_FLAGS_H_
+#define _XATTR_FLAGS_H_
+#include <sys/types.h>
+
+#define XATTR_FLAG_CONTENT_DEPENDENT 0x0001
+
+typedef int xattr_operation_intent_t;
+
+#define XATTR_OPERATION_INTENT_COPY  1
+#define XATTR_OPERATION_INTENT_SAVE  2
+#define XATTR_OPERATION_INTENT_SHARE 3
+#define XATTR_OPERATION_INTENT_SYNC  4
+
+int xattr_preserve_for_intent(const char *, xattr_operation_intent_t);
+char *xattr_name_with_flags(const char *, xattr_operation_intent_t);
+int xattr_intent_with_flags(xattr_operation_intent_t, int);
+#endif /* _XATTR_FLAGS_H_ */
+"""
+
+    count = 0
+    for name, content in stubs.items():
+        dst = usr_include / name
+        if not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_text(content)
+            count += 1
+
+    logger.info("Generated %d POSIX/C stub headers", count)
 
 
 def _generate_tbd_stubs(sdk_root: Path, tbd_targets: list[str]) -> None:

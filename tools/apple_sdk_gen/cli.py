@@ -82,6 +82,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Download and install C++ standard library headers from LLVM",
     )
     parser.add_argument(
+        "--include-simulators",
+        action="store_true",
+        help="Also generate simulator SDKs for each device platform",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="count",
         default=0,
@@ -96,6 +101,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if p not in PLATFORM_CONFIGS:
             parser.error(f"Unknown platform: {p}. Available: {', '.join(PLATFORM_CONFIGS.keys())}")
     args.platforms = platforms
+
+    # Expand simulator variants for each device platform
+    if args.include_simulators:
+        sim_keys = []
+        for p in platforms:
+            sim_key = f"{p}-simulator"
+            if sim_key in PLATFORM_CONFIGS and sim_key not in platforms:
+                sim_keys.append(sim_key)
+        args.platforms.extend(sim_keys)
 
     # Parse framework lists
     if args.frameworks:

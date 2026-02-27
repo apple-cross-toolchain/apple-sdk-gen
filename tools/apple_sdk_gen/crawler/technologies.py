@@ -99,9 +99,14 @@ def filter_frameworks(
     exclude: set[str] | None = None,
     objc_only: bool = False,
 ) -> list[FrameworkInfo]:
+    from ..config import NON_FRAMEWORK_MODULES
+
     result = []
     for fw in frameworks:
         names = {fw.name, fw.module_name}
+        # Skip documentation topics, REST APIs, JS libs, etc.
+        if fw.module_name in NON_FRAMEWORK_MODULES:
+            continue
         if include and not names.intersection(include):
             continue
         if exclude and names.intersection(exclude):
