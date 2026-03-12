@@ -212,6 +212,7 @@ async def run(args: argparse.Namespace) -> None:
                     sdk_root=sdk_path,
                     platform_key=platform_key,
                     reference_root=Path(args.swift_stdlib_path),
+                    sdk_version=args.sdk_version,
                 )
                 print("Installing reference library stubs...", file=sys.stderr)
                 install_reference_libs(
@@ -262,6 +263,14 @@ async def run(args: argparse.Namespace) -> None:
             if args.swift_stdlib_path and args.include_swift:
                 print("Rewriting swiftinterface compiler versions...", file=sys.stderr)
                 count = rewrite_swiftinterface_versions(sdk_path)
+                # Also rewrite Developer/usr/lib/*.swiftmodule (XCTest etc.)
+                platform_dir = sdk_path.parent.parent.parent
+                count += rewrite_swiftinterface_versions(
+                    platform_dir / "Developer" / "usr" / "lib"
+                )
+                count += rewrite_swiftinterface_versions(
+                    platform_dir / "Developer" / "Library" / "Frameworks"
+                )
                 logger.info("Rewrote %d .swiftinterface files", count)
 
             print(f"SDK generated at: {sdk_path}", file=sys.stderr)

@@ -13,7 +13,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from ..config import PLATFORM_CONFIGS
+from ..config import PLATFORM_CONFIGS, tbd_targets_for_platform
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ def install_reference_framework_headers(
     sdk_root: Path,
     platform_key: str,
     reference_root: Path,
+    sdk_version: str = "18.0",
 ) -> None:
     """Copy framework ``Headers/`` and ``module.modulemap`` from the reference SDK."""
     cfg = PLATFORM_CONFIGS.get(platform_key)
@@ -50,26 +51,52 @@ def install_reference_framework_headers(
     dst_frameworks = sdk_root / "System" / "Library" / "Frameworks"
     copied_headers = 0
     copied_modulemaps = 0
+    stripped = 0
 
+    # Track which frameworks exist in the reference SDK (with or without headers)
+    ref_fw_names: set[str] = set()
     for fw_dir in sorted(ref_frameworks.iterdir()):
         if not fw_dir.is_dir() or not fw_dir.name.endswith(".framework"):
             continue
+        ref_fw_names.add(fw_dir.name)
 
         dst_fw = dst_frameworks / fw_dir.name
+
+        # Create framework dir if reference has headers/modules/TBD to copy
+        ref_headers = fw_dir / "Headers"
+        ref_modules = fw_dir / "Modules"
+        ref_tbds = list(fw_dir.glob("*.tbd"))
         if not dst_fw.is_dir():
-            continue  # Only copy headers for frameworks we generated
+            if ref_headers.is_dir() or ref_modules.is_dir() or ref_tbds:
+                dst_fw.mkdir(parents=True, exist_ok=True)
+            else:
+                continue
+
+        # Copy TBD stubs from reference (more authoritative than generated)
+        for ref_tbd in ref_tbds:
+            shutil.copy2(ref_tbd, dst_fw / ref_tbd.name)
 
         # Copy Headers/ directory
-        ref_headers = fw_dir / "Headers"
         if ref_headers.is_dir():
             dst_headers = dst_fw / "Headers"
             if dst_headers.exists():
                 shutil.rmtree(dst_headers)
             shutil.copytree(ref_headers, dst_headers, symlinks=True)
             copied_headers += 1
+        else:
+            # Reference framework has no headers (TBD-only) — remove
+            # synthetic headers which may contain incorrect imports
+            dst_headers = dst_fw / "Headers"
+            if dst_headers.exists():
+                shutil.rmtree(dst_headers)
+                stripped += 1
+            # Also remove synthetic module.modulemap since it references
+            # the (now-removed) umbrella header
+            dst_modulemap = dst_fw / "Modules" / "module.modulemap"
+            if dst_modulemap.exists():
+                dst_modulemap.unlink()
 
         # Copy module.modulemap from Modules/
-        ref_modules = fw_dir / "Modules"
         if ref_modules.is_dir():
             ref_modulemap = ref_modules / "module.modulemap"
             if ref_modulemap.is_file():
@@ -87,6 +114,86 @@ def install_reference_framework_headers(
             shutil.rmtree(dst_subframeworks)
         shutil.copytree(ref_subframeworks, dst_subframeworks, symlinks=True)
 
+    # Copy Developer/Library/Frameworks/ (XCTest, Testing, etc.)
+    # and Developer/usr/lib/*.swiftmodule (XCTest.swiftmodule)
+    # These live outside the SDK root, in the platform directory.
+    ref_platform = ref_sdk.parent.parent.parent  # .../Platforms/<P>.platform
+    dst_platform = sdk_root.parent.parent.parent  # same relative path
+
+    tbd_targets = tbd_targets_for_platform(platform_key, sdk_version)
+    targets_str = ", ".join(tbd_targets)
+
+    ref_dev_frameworks = ref_platform / "Developer" / "Library" / "Frameworks"
+    if ref_dev_frameworks.is_dir():
+        dst_dev_frameworks = dst_platform / "Developer" / "Library" / "Frameworks"
+        if dst_dev_frameworks.exists():
+            shutil.rmtree(dst_dev_frameworks)
+        dst_dev_frameworks.mkdir(parents=True, exist_ok=True)
+
+        dev_fw_count = 0
+        for ref_fw in sorted(ref_dev_frameworks.iterdir()):
+            if not ref_fw.is_dir() or not ref_fw.name.endswith(".framework"):
+                continue
+            fw_name = ref_fw.name[:-len(".framework")]
+            dst_fw = dst_dev_frameworks / ref_fw.name
+            dst_fw.mkdir(parents=True, exist_ok=True)
+
+            # Copy Headers/
+            ref_h = ref_fw / "Headers"
+            if ref_h.is_dir():
+                shutil.copytree(ref_h, dst_fw / "Headers", symlinks=True)
+            # Copy Modules/
+            ref_m = ref_fw / "Modules"
+            if ref_m.is_dir():
+                shutil.copytree(ref_m, dst_fw / "Modules", symlinks=True)
+            # Copy Info.plist
+            ref_info = ref_fw / "Info.plist"
+            if ref_info.is_file():
+                shutil.copy2(ref_info, dst_fw / "Info.plist")
+
+            # Generate a minimal TBD stub (Mach-O binaries can't be used
+            # by ld64.lld when they re-export private frameworks)
+            install_name = (
+                f"@rpath/{ref_fw.name}/{fw_name}"
+            )
+            (dst_fw / f"{fw_name}.tbd").write_text(
+                f"--- !tapi-tbd\n"
+                f"tbd-version:     4\n"
+                f"targets:         [{targets_str}]\n"
+                f"install-name:    '{install_name}'\n"
+                f"...\n"
+            )
+            dev_fw_count += 1
+
+        logger.info("Copied %d Developer/Library/Frameworks from %s",
+                    dev_fw_count, ref_platform.name)
+
+    ref_dev_usr_lib = ref_platform / "Developer" / "usr" / "lib"
+    if ref_dev_usr_lib.is_dir():
+        dst_dev_usr_lib = dst_platform / "Developer" / "usr" / "lib"
+        dst_dev_usr_lib.mkdir(parents=True, exist_ok=True)
+        for swiftmod in ref_dev_usr_lib.glob("*.swiftmodule"):
+            dst_mod = dst_dev_usr_lib / swiftmod.name
+            if dst_mod.exists():
+                shutil.rmtree(dst_mod)
+            shutil.copytree(swiftmod, dst_mod, symlinks=True)
+            logger.debug("Copied Developer/usr/lib/%s", swiftmod.name)
+        # Generate TBD stubs for dylibs (e.g. libXCTestSwiftSupport)
+        for dylib in ref_dev_usr_lib.glob("*.dylib"):
+            tbd_name = dylib.stem + ".tbd"
+            install_name = f"@rpath/{dylib.name}"
+            (dst_dev_usr_lib / tbd_name).write_text(
+                f"--- !tapi-tbd\n"
+                f"tbd-version:     4\n"
+                f"targets:         [{targets_str}]\n"
+                f"install-name:    '{install_name}'\n"
+                f"...\n"
+            )
+
+    if stripped:
+        logger.info(
+            "Stripped synthetic headers from %d TBD-only frameworks", stripped,
+        )
     logger.info(
         "Copied %d framework Headers/ dirs and %d module.modulemaps from %s",
         copied_headers, copied_modulemaps, ref_sdk,
