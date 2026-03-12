@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import plistlib
 
 
 # Per-platform settings for SDKSettings.json.
@@ -198,13 +199,13 @@ _PLATFORM_SETTINGS: dict[str, dict] = {
 }
 
 
-def generate_sdk_settings(
+def _build_sdk_settings(
     platform_name: str,
     sdk_version: str,
     deployment_target: str | None = None,
     platform_key: str | None = None,
-) -> str:
-    """Generate SDKSettings.json for an SDK."""
+) -> dict:
+    """Build the SDKSettings dictionary."""
     if deployment_target is None:
         deployment_target = sdk_version
 
@@ -226,7 +227,7 @@ def generate_sdk_settings(
         if plat["DeviceFamilies"]:
             supported_target["DeviceFamilies"] = plat["DeviceFamilies"]
 
-        settings = {
+        return {
             "CanonicalName": canonical,
             "DisplayName": plat["DisplayName"],
             "Version": sdk_version,
@@ -239,8 +240,7 @@ def generate_sdk_settings(
             },
         }
     else:
-        # Fallback for unknown platforms
-        settings = {
+        return {
             "CanonicalName": f"{platform_name.lower()}{sdk_version}",
             "DisplayName": platform_name,
             "Version": sdk_version,
@@ -257,25 +257,72 @@ def generate_sdk_settings(
             "IsBaseSDK": "YES",
         }
 
+
+def generate_sdk_settings(
+    platform_name: str,
+    sdk_version: str,
+    deployment_target: str | None = None,
+    platform_key: str | None = None,
+) -> str:
+    """Generate SDKSettings.json for an SDK."""
+    settings = _build_sdk_settings(
+        platform_name, sdk_version, deployment_target, platform_key,
+    )
     return json.dumps(settings, indent=2) + "\n"
+
+
+def generate_sdk_settings_plist(
+    platform_name: str,
+    sdk_version: str,
+    deployment_target: str | None = None,
+    platform_key: str | None = None,
+) -> bytes:
+    """Generate SDKSettings.plist (binary plist) for an SDK."""
+    settings = _build_sdk_settings(
+        platform_name, sdk_version, deployment_target, platform_key,
+    )
+    return plistlib.dumps(settings, fmt=plistlib.FMT_XML)
 
 
 def generate_info_plist(
     platform_name: str,
     sdk_version: str,
+    platform_key: str | None = None,
 ) -> str:
-    """Generate a minimal Info.plist for the platform."""
-    return f"""\
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>{platform_name}</string>
-    <key>CFBundleShortVersionString</key>
-    <string>{sdk_version}</string>
-    <key>CFBundleVersion</key>
-    <string>{sdk_version}</string>
-</dict>
-</plist>
-"""
+    """Generate Info.plist for the platform.
+
+    The ``Name`` key is critical: xcrun matches SDKs by this field
+    (e.g. ``iphonesimulator``).
+    """
+    plat = _PLATFORM_SETTINGS.get(platform_key or "")
+    # xcrun matches on the lowercase canonical name (e.g. "iphonesimulator")
+    name = plat["CanonicalName"] if plat else platform_name.lower()
+    identifier = f"com.apple.platform.{name}" if plat else ""
+
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0">',
+        '<dict>',
+        '    <key>CFBundleName</key>',
+        f'    <string>{platform_name}</string>',
+        '    <key>CFBundleShortVersionString</key>',
+        f'    <string>{sdk_version}</string>',
+        '    <key>CFBundleVersion</key>',
+        f'    <string>{sdk_version}</string>',
+        '    <key>Name</key>',
+        f'    <string>{name}</string>',
+        '    <key>Version</key>',
+        f'    <string>{sdk_version}</string>',
+    ]
+    if identifier:
+        lines += [
+            '    <key>Identifier</key>',
+            f'    <string>{identifier}</string>',
+        ]
+    lines += [
+        '</dict>',
+        '</plist>',
+        '',
+    ]
+    return '\n'.join(lines)

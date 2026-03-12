@@ -17,7 +17,7 @@ from ..config import (
 )
 from ..generators.modulemap import generate_modulemap
 from ..generators.objc_header import generate_umbrella_header
-from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings
+from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings, generate_sdk_settings_plist
 from ..generators.swiftinterface import generate_swiftinterface
 from ..generators.tbd import generate_tbd
 from ..models.symbol import Symbol
@@ -62,15 +62,19 @@ def assemble_sdk(
         versioned_link.unlink()
     versioned_link.symlink_to(base_sdk_name)
 
-    # SDKSettings.json (enhanced with per-platform data)
+    # SDKSettings.json and SDKSettings.plist (xcrun needs the plist to discover SDKs)
     settings = generate_sdk_settings(
         cfg.sdk_prefix, sdk_version, platform_key=platform_key,
     )
     (sdk_root / "SDKSettings.json").write_text(settings)
+    settings_plist = generate_sdk_settings_plist(
+        cfg.sdk_prefix, sdk_version, platform_key=platform_key,
+    )
+    (sdk_root / "SDKSettings.plist").write_bytes(settings_plist)
 
     # Platform Info.plist
     platform_dir = platforms_dir / cfg.platform_dir
-    info_plist = generate_info_plist(cfg.sdk_prefix, sdk_version)
+    info_plist = generate_info_plist(cfg.sdk_prefix, sdk_version, platform_key=platform_key)
     (platform_dir / "Info.plist").write_text(info_plist)
 
     # TBD targets for this platform
