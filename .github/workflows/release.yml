@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: version
+        run: |
+          # Get the latest tag matching X.Y.Z pattern
+          latest=$(git tag --list '[0-9]*.*.*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            next="0.0.1"
+          else
+            major="${latest%%.*}"
+            rest="${latest#*.}"
+            minor="${rest%%.*}"
+            patch="${rest#*.}"
+            patch=$((patch + 1))
+            next="${major}.${minor}.${patch}"
+          fi
+          echo "tag=${next}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Restore cache
+        uses: actions/cache@v5
+        with:
+          path: cache
+          key: api-cache
+
+      - name: Install dependencies
+        run: pip install -e tools/
+
+      - name: Build all SDKs
+        run: |
+          python -m tools.apple_sdk_gen \
+            --sdk-version 26.2 \
+            --platforms ios,macos,tvos,watchos,visionos \
+            --include-simulators \
+            --all-frameworks \
+            --include-swift \
+            --include-libc \
+            --include-cxx \
+            -v
+
+      - name: Bundle SDKs
+        run: tar -cf - -C output Xcode.app | zstd -19 -T0 -o apple-sdks.tar.zst
+
+      - name: Create tag
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes \
+            apple-sdks.tar.zst
