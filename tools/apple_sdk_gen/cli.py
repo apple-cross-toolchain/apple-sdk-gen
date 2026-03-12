@@ -87,6 +87,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Also generate simulator SDKs for each device platform",
     )
     parser.add_argument(
+        "--swift-stdlib-path",
+        type=str,
+        default=None,
+        help="Path to a reference SDK root (Xcode.app/) to copy Swift stdlib "
+             ".swiftinterface files from (usr/lib/swift/*.swiftmodule/)",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="count",
         default=0,

@@ -299,6 +299,8 @@ def generate_info_plist(
     name = plat["CanonicalName"] if plat else platform_name.lower()
     identifier = f"com.apple.platform.{name}" if plat else ""
 
+    default_compiler = "com.apple.compilers.llvm.clang.1_0"
+
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -310,6 +312,19 @@ def generate_info_plist(
         f'    <string>{sdk_version}</string>',
         '    <key>CFBundleVersion</key>',
         f'    <string>{sdk_version}</string>',
+        # DefaultProperties — environment_plist reads DEFAULT_COMPILER here
+        '    <key>DefaultProperties</key>',
+        '    <dict>',
+        '        <key>DEFAULT_COMPILER</key>',
+        f'        <string>{default_compiler}</string>',
+    ]
+    if plat:
+        lines += [
+            '        <key>PLATFORM_NAME</key>',
+            f'        <string>{plat["DefaultProperties"]["PLATFORM_NAME"]}</string>',
+        ]
+    lines += [
+        '    </dict>',
         '    <key>Name</key>',
         f'    <string>{name}</string>',
         '    <key>Version</key>',
@@ -326,3 +341,61 @@ def generate_info_plist(
         '',
     ]
     return '\n'.join(lines)
+
+
+def generate_system_version_plist(sdk_version: str) -> str:
+    """Generate System/Library/CoreServices/SystemVersion.plist.
+
+    The ported ``sw_vers`` tool reads this file to report the macOS
+    version.  ``environment_plist`` (from rules_apple) invokes
+    ``sw_vers --buildVersion`` so at least one SDK must contain this
+    plist for cross-compilation to succeed on Linux.
+    """
+    return "\n".join([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+        '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0">',
+        '<dict>',
+        '    <key>ProductBuildVersion</key>',
+        f'    <string>0CFFFF</string>',
+        '    <key>ProductName</key>',
+        '    <string>macOS</string>',
+        '    <key>ProductVersion</key>',
+        f'    <string>{sdk_version}</string>',
+        '</dict>',
+        '</plist>',
+        '',
+    ])
+
+
+def generate_xcode_version_plist(sdk_version: str) -> str:
+    """Generate Xcode.app/Contents/version.plist.
+
+    ``environment_plist`` reads ``CFBundleShortVersionString`` and
+    ``ProductBuildVersion`` from this file to populate ``DTXcode`` and
+    ``DTXcodeBuild`` in the environment plist.  The version string must
+    contain at least two dot-separated components so that the shell
+    ``printf '%02d%d%d'`` formatting does not fail.
+    """
+    # Synthesise an Xcode-style version from the SDK version.
+    # e.g. SDK "26.2" → Xcode "16.2" (subtract 10 from major).
+    parts = sdk_version.split(".")
+    major = int(parts[0]) - 10 if len(parts) >= 1 else 0
+    minor = int(parts[1]) if len(parts) >= 2 else 0
+    version_str = f"{major}.{minor}"
+
+    return "\n".join([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+        '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0">',
+        '<dict>',
+        '    <key>CFBundleShortVersionString</key>',
+        f'    <string>{version_str}</string>',
+        '    <key>ProductBuildVersion</key>',
+        '    <string>0CFFFF</string>',
+        '</dict>',
+        '</plist>',
+        '',
+    ])

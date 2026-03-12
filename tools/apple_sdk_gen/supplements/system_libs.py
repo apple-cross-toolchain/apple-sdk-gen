@@ -1510,9 +1510,9 @@ def _write_reexport_tbd(
         f"tbd-version:     4\n"
         f"targets:         [{targets_str}]\n"
         f"install-name:    '{alias_name}'\n"
-        f"exports:\n"
+        f"reexported-libraries:\n"
         f"  - targets:     [{targets_str}]\n"
-        f"    re-exports:\n"
+        f"    libraries:\n"
         f"      - '{reexport_install_name}'\n"
         f"...\n"
     )

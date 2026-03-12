@@ -134,9 +134,9 @@ tbd-version:     4
 targets:         [{targets_str}]
 install-name:    '/usr/lib/libc++.1.dylib'
 current-version: 1700.255.0
-exports:
+reexported-libraries:
   - targets:     [{targets_str}]
-    re-exports:
+    libraries:
       - '/usr/lib/libc++abi.dylib'
 ...
 """)

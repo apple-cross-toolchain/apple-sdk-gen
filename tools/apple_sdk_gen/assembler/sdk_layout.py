@@ -17,7 +17,7 @@ from ..config import (
 )
 from ..generators.modulemap import generate_modulemap
 from ..generators.objc_header import generate_umbrella_header
-from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings, generate_sdk_settings_plist
+from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings, generate_sdk_settings_plist, generate_system_version_plist, generate_xcode_version_plist
 from ..generators.swiftinterface import generate_swiftinterface
 from ..generators.tbd import generate_tbd
 from ..models.symbol import Symbol
@@ -47,7 +47,40 @@ def assemble_sdk(
         raise ValueError(f"Unknown platform: {platform_key}")
 
     # Replicate Xcode.app directory hierarchy
-    platforms_dir = output_dir / "Xcode.app" / "Contents" / "Developer" / "Platforms"
+    xcode_contents = output_dir / "Xcode.app" / "Contents"
+    developer_dir = xcode_contents / "Developer"
+
+    # Xcode version.plist — environment_plist reads DTXcode/DTXcodeBuild
+    # from ${DEVELOPER_DIR}/../version.plist.
+    version_plist = xcode_contents / "version.plist"
+    if not version_plist.exists():
+        xcode_contents.mkdir(parents=True, exist_ok=True)
+        version_plist.write_text(generate_xcode_version_plist(sdk_version))
+
+    # Create Toolchains directory structure so the repo rule can copy
+    # Swift binaries and ported tools into it without mkdir failures.
+    toolchain_dir = developer_dir / "Toolchains" / "XcodeDefault.xctoolchain"
+    toolchain_bin = toolchain_dir / "usr" / "bin"
+    toolchain_lib = toolchain_bin.parent / "lib"
+    toolchain_bin.mkdir(parents=True, exist_ok=True)
+    toolchain_lib.mkdir(parents=True, exist_ok=True)
+
+    # ToolchainInfo.plist — required by xcrun to discover the toolchain
+    toolchain_info = toolchain_dir / "ToolchainInfo.plist"
+    if not toolchain_info.exists():
+        toolchain_info.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+            '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+            '<plist version="1.0">\n'
+            '<dict>\n'
+            '\t<key>Identifier</key>\n'
+            '\t<string>com.apple.dt.toolchain.XcodeDefault</string>\n'
+            '</dict>\n'
+            '</plist>\n'
+        )
+
+    platforms_dir = developer_dir / "Platforms"
     base_sdk_name = f"{cfg.sdk_prefix}.sdk"
     versioned_sdk_name = f"{cfg.sdk_prefix}{sdk_version}.sdk"
     sdks_dir = platforms_dir / cfg.platform_dir / "Developer" / "SDKs"
@@ -71,6 +104,15 @@ def assemble_sdk(
         cfg.sdk_prefix, sdk_version, platform_key=platform_key,
     )
     (sdk_root / "SDKSettings.plist").write_bytes(settings_plist)
+
+    # SystemVersion.plist — needed by the ported sw_vers tool on Linux.
+    # sw_vers iterates all SDK targets looking for this file; placing it
+    # in every SDK ensures it's found regardless of platform selection.
+    core_services = sdk_root / "System" / "Library" / "CoreServices"
+    core_services.mkdir(parents=True, exist_ok=True)
+    (core_services / "SystemVersion.plist").write_text(
+        generate_system_version_plist(sdk_version)
+    )
 
     # Platform Info.plist
     platform_dir = platforms_dir / cfg.platform_dir

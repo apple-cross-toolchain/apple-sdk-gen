@@ -67,7 +67,8 @@ def generate_swiftinterface(
             for child in child_syms:
                 child_avail = _swift_availability(child)
                 if child_avail:
-                    lines.append(f"  {child_avail}")
+                    for avail_line in child_avail.split("\n"):
+                        lines.append(f"  {avail_line}")
                 if child.swift_declaration:
                     child_text = child.swift_declaration.render().strip()
                     if child_text:
@@ -83,7 +84,7 @@ def generate_swiftinterface(
 
 def _swift_availability(sym: Symbol) -> str | None:
     seen: set[str] = set()
-    parts = []
+    attrs: list[str] = []
     for avail in sym.availability:
         platform = _swift_platform_name(avail.platform.value)
         if platform is None:
@@ -99,11 +100,11 @@ def _swift_availability(sym: Symbol) -> str | None:
             continue
         if entry not in seen:
             seen.add(entry)
-            parts.append(entry)
+            attrs.append(f"@available({entry})")
 
-    if not parts:
+    if not attrs:
         return None
-    return "@available(" + ", ".join(parts) + ")"
+    return "\n".join(attrs)
 
 
 def _swift_platform_name(name: str) -> str | None:

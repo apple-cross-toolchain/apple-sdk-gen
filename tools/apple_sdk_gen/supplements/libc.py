@@ -605,9 +605,9 @@ tbd-version:     4
 targets:         [{targets_str}]
 install-name:    '/usr/lib/libSystem.B.dylib'
 current-version: 1345.100.2
-exports:
+reexported-libraries:
   - targets:     [{targets_str}]
-    re-exports:
+    libraries:
       - '/usr/lib/system/libsystem_c.dylib'
       - '/usr/lib/system/libsystem_kernel.dylib'
       - '/usr/lib/system/libsystem_malloc.dylib'
@@ -640,9 +640,9 @@ tbd-version:     4
 targets:         [{targets_str}]
 install-name:    '/usr/lib/libc.dylib'
 current-version: 1345.100.2
-exports:
+reexported-libraries:
   - targets:     [{targets_str}]
-    re-exports:
+    libraries:
       - '/usr/lib/libSystem.B.dylib'
 ...
 """)
@@ -786,9 +786,9 @@ tbd-version:     4
 targets:         [{targets_str}]
 install-name:    '/usr/lib/libobjc.dylib'
 current-version: 228.0.0
-exports:
+reexported-libraries:
   - targets:     [{targets_str}]
-    re-exports:
+    libraries:
       - '/usr/lib/libobjc.A.dylib'
 ...
 """)
@@ -886,7 +886,6 @@ exports:
       - _dispatch_queue_attr_make_with_qos_class
       - _dispatch_queue_attr_make_initially_inactive
       - _dispatch_queue_attr_make_with_autorelease_frequency
-    symbols:
       - _dispatch_data_empty
       - __dispatch_main_q
       - __dispatch_source_type_data_add

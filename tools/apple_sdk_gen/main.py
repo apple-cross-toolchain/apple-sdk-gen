@@ -21,10 +21,17 @@ from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
 from .supplements.commoncrypto import install_commoncrypto_headers
+from .supplements.swift_frameworks import install_framework_swiftmodules
 from .supplements.libc import install_libc_headers
 from .supplements.libcxx import install_libcxx_headers
 from .supplements.platform_headers import install_platform_headers
+from .supplements.reference_framework_headers import install_reference_framework_headers
+from .supplements.reference_headers import install_reference_headers
+from .supplements.reference_libs import install_reference_libs
+from .supplements.reference_toolchain import install_reference_clang_resource
+from .supplements.rewrite_swiftinterface import rewrite_swiftinterface_versions
 from .supplements.swift_shims import install_swift_shims
+from .supplements.swift_stdlib import install_swift_stdlib
 from .supplements.system_libs import install_system_lib_stubs
 from .supplements.system_modulemaps import install_system_modulemaps
 
@@ -118,6 +125,14 @@ async def run(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
+        # Copy clang resource directory from reference toolchain (once)
+        if args.swift_stdlib_path:
+            print("Installing clang resource directory...", file=sys.stderr)
+            install_reference_clang_resource(
+                output_dir=output_dir,
+                reference_root=Path(args.swift_stdlib_path),
+            )
+
         # Phase 4: Filter by platform availability and generate SDKs
         for platform_key in args.platforms:
             cfg = PLATFORM_CONFIGS[platform_key]
@@ -184,6 +199,27 @@ async def run(args: argparse.Namespace) -> None:
                 print("Installing system module maps...", file=sys.stderr)
                 install_system_modulemaps(sdk_path)
 
+            # If a reference SDK is available, copy real headers/modulemaps
+            if args.swift_stdlib_path:
+                print("Installing reference headers...", file=sys.stderr)
+                install_reference_headers(
+                    sdk_root=sdk_path,
+                    platform_key=platform_key,
+                    reference_root=Path(args.swift_stdlib_path),
+                )
+                print("Installing reference framework headers...", file=sys.stderr)
+                install_reference_framework_headers(
+                    sdk_root=sdk_path,
+                    platform_key=platform_key,
+                    reference_root=Path(args.swift_stdlib_path),
+                )
+                print("Installing reference library stubs...", file=sys.stderr)
+                install_reference_libs(
+                    sdk_root=sdk_path,
+                    platform_key=platform_key,
+                    reference_root=Path(args.swift_stdlib_path),
+                )
+
             # Install C++ standard library headers if requested
             if args.include_cxx:
                 print("Installing libc++ headers...", file=sys.stderr)
@@ -202,6 +238,31 @@ async def run(args: argparse.Namespace) -> None:
                     sdk_version=args.sdk_version,
                     cache_dir=cache_dir,
                 )
+
+            # Copy Swift stdlib .swiftinterface files from reference SDK
+            if args.swift_stdlib_path and args.include_swift:
+                print("Installing Swift stdlib interfaces...", file=sys.stderr)
+                install_swift_stdlib(
+                    sdk_root=sdk_path,
+                    platform_key=platform_key,
+                    reference_root=Path(args.swift_stdlib_path),
+                )
+
+            # Copy real framework .swiftmodule dirs from reference SDK
+            if args.swift_stdlib_path and args.include_swift:
+                print("Installing framework swiftmodules...", file=sys.stderr)
+                install_framework_swiftmodules(
+                    sdk_root=sdk_path,
+                    platform_key=platform_key,
+                    reference_root=Path(args.swift_stdlib_path),
+                )
+
+            # Rewrite swift-compiler-version in all .swiftinterface files
+            # to match the host compiler (Apple vs open-source version mismatch)
+            if args.swift_stdlib_path and args.include_swift:
+                print("Rewriting swiftinterface compiler versions...", file=sys.stderr)
+                count = rewrite_swiftinterface_versions(sdk_path)
+                logger.info("Rewrote %d .swiftinterface files", count)
 
             print(f"SDK generated at: {sdk_path}", file=sys.stderr)
 
