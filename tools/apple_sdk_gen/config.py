@@ -19,35 +19,35 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         name=PlatformName.IOS,
         sdk_prefix="iPhoneOS",
         platform_dir="iPhoneOS.platform",
-        target_triples=["arm64-apple-ios"],
+        target_triples=["arm64-apple-ios", "arm64e-apple-ios"],
         swift_triples=["arm64-apple-ios"],
     ),
     "macos": PlatformConfig(
         name=PlatformName.MACOS,
         sdk_prefix="MacOSX",
         platform_dir="MacOSX.platform",
-        target_triples=["arm64-apple-macos", "x86_64-apple-macos"],
+        target_triples=["x86_64-apple-macos", "arm64-apple-macos", "arm64e-apple-macos"],
         swift_triples=["arm64-apple-macos", "x86_64-apple-macos"],
     ),
     "tvos": PlatformConfig(
         name=PlatformName.TVOS,
         sdk_prefix="AppleTVOS",
         platform_dir="AppleTVOS.platform",
-        target_triples=["arm64-apple-tvos"],
+        target_triples=["arm64-apple-tvos", "arm64e-apple-tvos"],
         swift_triples=["arm64-apple-tvos"],
     ),
     "watchos": PlatformConfig(
         name=PlatformName.WATCHOS,
         sdk_prefix="WatchOS",
         platform_dir="WatchOS.platform",
-        target_triples=["arm64_32-apple-watchos"],
+        target_triples=["arm64_32-apple-watchos", "arm64-apple-watchos", "arm64e-apple-watchos"],
         swift_triples=["arm64_32-apple-watchos"],
     ),
     "visionos": PlatformConfig(
         name=PlatformName.VISIONOS,
         sdk_prefix="XROS",
         platform_dir="XROS.platform",
-        target_triples=["arm64-apple-xros"],
+        target_triples=["arm64-apple-xros", "arm64e-apple-xros"],
         swift_triples=["arm64-apple-xros"],
     ),
     # ── Simulator platforms ──
@@ -82,28 +82,29 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
 }
 
 
-def tbd_targets_for_platform(platform_key: str, sdk_version: str) -> list[str]:
+_TBD_OS = {
+    "ios": "ios",
+    "macos": "macos",
+    "tvos": "tvos",
+    "watchos": "watchos",
+    "visionos": "xros",
+    "ios-simulator": "ios-simulator",
+    "tvos-simulator": "tvos-simulator",
+    "watchos-simulator": "watchos-simulator",
+    "visionos-simulator": "xros-simulator",
+}
+
+
+def tbd_target_name(platform_key: str, arch: str) -> str:
+    return f"{arch}-{_TBD_OS.get(platform_key, platform_key)}"
+
+
+def tbd_targets_for_platform(platform_key: str, sdk_version: str = "") -> list[str]:
     """Generate TBD target strings like 'arm64-ios' for a platform."""
     cfg = PLATFORM_CONFIGS.get(platform_key)
     if not cfg:
         return []
-    os_name = {
-        "ios": "ios",
-        "macos": "macos",
-        "tvos": "tvos",
-        "watchos": "watchos",
-        "visionos": "xros",
-        "ios-simulator": "ios-simulator",
-        "tvos-simulator": "tvos-simulator",
-        "watchos-simulator": "watchos-simulator",
-        "visionos-simulator": "xros-simulator",
-    }.get(platform_key, platform_key)
-
-    targets = []
-    for triple in cfg.target_triples:
-        arch = triple.split("-")[0]
-        targets.append(f"{arch}-{os_name}")
-    return targets
+    return [tbd_target_name(platform_key, triple.split("-")[0]) for triple in cfg.target_triples]
 
 
 # Module names from the documentation API that are NOT real .framework

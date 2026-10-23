@@ -17,3 +17,6 @@ apple-sdk-gen = "apple_sdk_gen.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+apple_sdk_gen = ["supplements/data/*.json"]

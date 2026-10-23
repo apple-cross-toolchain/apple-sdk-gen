@@ -21,6 +21,7 @@ _SWIFT_TAGS: dict[str, str] = {
     "17.0": "swift-6.0-RELEASE",
     "18.0": "swift-6.0.3-RELEASE",
     "18.2": "swift-6.1-RELEASE",
+    "27.0": "swift-6.4.0-RELEASE",
 }
 
 _RAW_URL = "https://raw.githubusercontent.com/swiftlang/swift/{tag}/stdlib/public/SwiftShims/swift/shims/{file}"

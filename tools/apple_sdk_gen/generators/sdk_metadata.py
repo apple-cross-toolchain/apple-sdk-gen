@@ -3,399 +3,238 @@ from __future__ import annotations
 import json
 import plistlib
 
+from ..config import PLATFORM_CONFIGS
 
-# Per-platform settings for SDKSettings.json.
-# Keys match the platform_key strings used throughout the tool.
-_PLATFORM_SETTINGS: dict[str, dict] = {
+DEFAULT_COMPILER = "com.apple.compilers.llvm.clang.1_0"
+
+_PHONE = {"Identifier": "1", "Name": "phone", "DisplayName": "iPhone"}
+_PAD = {"Identifier": "2", "Name": "pad", "DisplayName": "iPad"}
+_TV = {"Identifier": "3", "Name": "tv", "DisplayName": "Apple TV"}
+_WATCH = {"Identifier": "4", "Name": "watch", "DisplayName": "Apple Watch"}
+_MAC = {"Name": "mac", "DisplayName": "Mac"}
+_VISION = {"Identifier": "7", "Name": "vision", "DisplayName": "Apple Vision"}
+
+_DEVICES = {
     "ios": {
-        "CanonicalName": "iphoneos",
-        "DisplayName": "iOS",
-        "Archs": ["arm64"],
-        "BuildVersionPlatformID": "2",
-        "MinimumDeploymentTarget": "16.0",
-        "DeviceFamilies": [
-            {"Identifier": "1", "Name": "phone", "DisplayName": "iPhone"},
-            {"Identifier": "2", "Name": "pad", "DisplayName": "iPad"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "ios",
-        "ClangRuntimeLibraryPlatformName": "ios",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "iphoneos",
-            "CODE_SIGN_IDENTITY": "Apple Development",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "YES",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
+        "name": "iphoneos",
+        "family": "iphoneos",
+        "family_name": "iOS",
+        "display": "iOS",
+        "product": "iPhone OS",
+        "sys": "ios",
+        "runtime": "ios",
+        "build_id": "2",
+        "minimum": "15.0",
+        "families": [_PHONE, _PAD],
     },
     "macos": {
-        "CanonicalName": "macosx",
-        "DisplayName": "macOS",
-        "Archs": ["arm64", "x86_64"],
-        "BuildVersionPlatformID": "1",
-        "MinimumDeploymentTarget": "13.0",
-        "DeviceFamilies": [],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "macos",
-        "ClangRuntimeLibraryPlatformName": "osx",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "macosx",
-            "CODE_SIGN_IDENTITY": "-",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "NO",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
+        "name": "macosx",
+        "family": "macosx",
+        "family_name": "macOS",
+        "display": "macOS",
+        "product": "macOS",
+        "sys": "macos",
+        "runtime": "osx",
+        "build_id": "1",
+        "minimum": "12.0",
+        "families": [_MAC],
     },
     "tvos": {
-        "CanonicalName": "appletvos",
-        "DisplayName": "tvOS",
-        "Archs": ["arm64"],
-        "BuildVersionPlatformID": "3",
-        "MinimumDeploymentTarget": "16.0",
-        "DeviceFamilies": [
-            {"Identifier": "3", "Name": "tv", "DisplayName": "Apple TV"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "tvos",
-        "ClangRuntimeLibraryPlatformName": "tvos",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "appletvos",
-            "CODE_SIGN_IDENTITY": "Apple Development",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "YES",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
+        "name": "appletvos",
+        "family": "appletvos",
+        "family_name": "tvOS",
+        "display": "tvOS",
+        "product": "Apple TVOS",
+        "sys": "tvos",
+        "runtime": "tvos",
+        "build_id": "3",
+        "minimum": "15.0",
+        "families": [_TV],
     },
     "watchos": {
-        "CanonicalName": "watchos",
-        "DisplayName": "watchOS",
-        "Archs": ["arm64_32"],
-        "BuildVersionPlatformID": "4",
-        "MinimumDeploymentTarget": "9.0",
-        "DeviceFamilies": [
-            {"Identifier": "4", "Name": "watch", "DisplayName": "Apple Watch"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "watchos",
-        "ClangRuntimeLibraryPlatformName": "watchos",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "watchos",
-            "CODE_SIGN_IDENTITY": "Apple Development",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "YES",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
+        "name": "watchos",
+        "family": "watchos",
+        "family_name": "watchOS",
+        "display": "watchOS",
+        "product": "Watch OS",
+        "sys": "watchos",
+        "runtime": "watchos",
+        "build_id": "4",
+        "minimum": "9.0",
+        "families": [_WATCH],
     },
     "visionos": {
-        "CanonicalName": "xros",
-        "DisplayName": "visionOS",
-        "Archs": ["arm64"],
-        "BuildVersionPlatformID": "11",
-        "MinimumDeploymentTarget": "1.0",
-        "DeviceFamilies": [
-            {"Identifier": "7", "Name": "reality", "DisplayName": "Apple Vision"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "xros",
-        "ClangRuntimeLibraryPlatformName": "xros",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "xros",
-            "CODE_SIGN_IDENTITY": "Apple Development",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "YES",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
-    },
-    # ── Simulator platforms ──
-    "ios-simulator": {
-        "CanonicalName": "iphonesimulator",
-        "DisplayName": "Simulator - iOS",
-        "Archs": ["arm64", "x86_64"],
-        "BuildVersionPlatformID": "7",
-        "MinimumDeploymentTarget": "16.0",
-        "DeviceFamilies": [
-            {"Identifier": "1", "Name": "phone", "DisplayName": "iPhone"},
-            {"Identifier": "2", "Name": "pad", "DisplayName": "iPad"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "ios",
-        "LLVMTargetTripleEnvironment": "simulator",
-        "ClangRuntimeLibraryPlatformName": "iossim",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "iphonesimulator",
-            "CODE_SIGN_IDENTITY": "-",
-            "AD_HOC_CODE_SIGNING_ALLOWED": "YES",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "NO",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
-    },
-    "tvos-simulator": {
-        "CanonicalName": "appletvsimulator",
-        "DisplayName": "Simulator - tvOS",
-        "Archs": ["arm64", "x86_64"],
-        "BuildVersionPlatformID": "8",
-        "MinimumDeploymentTarget": "16.0",
-        "DeviceFamilies": [
-            {"Identifier": "3", "Name": "tv", "DisplayName": "Apple TV"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "tvos",
-        "LLVMTargetTripleEnvironment": "simulator",
-        "ClangRuntimeLibraryPlatformName": "tvossim",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "appletvsimulator",
-            "CODE_SIGN_IDENTITY": "-",
-            "AD_HOC_CODE_SIGNING_ALLOWED": "YES",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "NO",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
-    },
-    "watchos-simulator": {
-        "CanonicalName": "watchsimulator",
-        "DisplayName": "Simulator - watchOS",
-        "Archs": ["arm64", "x86_64"],
-        "BuildVersionPlatformID": "9",
-        "MinimumDeploymentTarget": "9.0",
-        "DeviceFamilies": [
-            {"Identifier": "4", "Name": "watch", "DisplayName": "Apple Watch"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "watchos",
-        "LLVMTargetTripleEnvironment": "simulator",
-        "ClangRuntimeLibraryPlatformName": "watchossim",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "watchsimulator",
-            "CODE_SIGN_IDENTITY": "-",
-            "AD_HOC_CODE_SIGNING_ALLOWED": "YES",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "NO",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
-    },
-    "visionos-simulator": {
-        "CanonicalName": "xrsimulator",
-        "DisplayName": "Simulator - visionOS",
-        "Archs": ["arm64", "x86_64"],
-        "BuildVersionPlatformID": "12",
-        "MinimumDeploymentTarget": "1.0",
-        "DeviceFamilies": [
-            {"Identifier": "7", "Name": "reality", "DisplayName": "Apple Vision"},
-        ],
-        "LLVMTargetTripleVendor": "apple",
-        "LLVMTargetTripleSys": "xros",
-        "LLVMTargetTripleEnvironment": "simulator",
-        "ClangRuntimeLibraryPlatformName": "xrossim",
-        "DefaultProperties": {
-            "PLATFORM_NAME": "xrsimulator",
-            "CODE_SIGN_IDENTITY": "-",
-            "AD_HOC_CODE_SIGNING_ALLOWED": "YES",
-            "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
-            "ENTITLEMENTS_REQUIRED": "NO",
-            "DEAD_CODE_STRIPPING": "YES",
-        },
+        "name": "xros",
+        "family": "xros",
+        "family_name": "xrOS",
+        "display": "visionOS",
+        "product": "xrOS",
+        "sys": "xros",
+        "runtime": "xros",
+        "build_id": "11",
+        "minimum": "1.0",
+        "families": [_VISION],
     },
 }
 
+_SIMULATORS = {
+    "ios-simulator": ("ios", "iphonesimulator", "iossim", "7"),
+    "tvos-simulator": ("tvos", "appletvsimulator", "tvossim", "8"),
+    "watchos-simulator": ("watchos", "watchsimulator", "watchossim", "9"),
+    "visionos-simulator": ("visionos", "xrsimulator", "xrossim", "12"),
+}
 
-def _build_sdk_settings(
-    platform_name: str,
-    sdk_version: str,
-    deployment_target: str | None = None,
-    platform_key: str | None = None,
-) -> dict:
-    """Build the SDKSettings dictionary."""
-    if deployment_target is None:
-        deployment_target = sdk_version
+PLATFORMS = {key: dict(value, env="") for key, value in _DEVICES.items()}
+for _key, (_device, _name, _runtime, _build_id) in _SIMULATORS.items():
+    PLATFORMS[_key] = dict(
+        _DEVICES[_device],
+        name=_name,
+        env="simulator",
+        runtime=_runtime,
+        build_id=_build_id,
+        display="Simulator - " + _DEVICES[_device]["display"],
+    )
 
-    plat = _PLATFORM_SETTINGS.get(platform_key or "")
+_VISIONOS_VERSIONS = [
+    ("17.1", "1.0"),
+    ("17.4", "1.1"),
+    ("17.5", "1.2"),
+    ("18.0", "2.0"),
+    ("18.1", "2.1"),
+    ("18.2", "2.2"),
+    ("18.3", "2.3"),
+    ("18.4", "2.4"),
+    ("18.5", "2.5"),
+    ("18.6", "2.6"),
+]
 
-    if plat:
-        canonical = f"{plat['CanonicalName']}{sdk_version}"
-        default_props = dict(plat["DefaultProperties"])
 
-        supported_target = {
-            "Archs": plat["Archs"],
-            "DefaultDeploymentTarget": deployment_target,
-            "MinimumDeploymentTarget": plat["MinimumDeploymentTarget"],
-            "LLVMTargetTripleVendor": plat["LLVMTargetTripleVendor"],
-            "LLVMTargetTripleSys": plat["LLVMTargetTripleSys"],
-        }
-        if "LLVMTargetTripleEnvironment" in plat:
-            supported_target["LLVMTargetTripleEnvironment"] = plat["LLVMTargetTripleEnvironment"]
-        if plat["DeviceFamilies"]:
-            supported_target["DeviceFamilies"] = plat["DeviceFamilies"]
+def default_xcode_version(sdk_version: str) -> str:
+    major, _, minor = sdk_version.partition(".")
+    if int(major) >= 26:
+        return sdk_version
+    return "{}.{}".format(int(major) - 10, minor or "0")
 
-        return {
-            "CanonicalName": canonical,
-            "DisplayName": plat["DisplayName"],
-            "Version": sdk_version,
-            "MaximumDeploymentTarget": sdk_version,
-            "MinimalDisplayName": sdk_version,
-            "IsBaseSDK": "YES",
-            "DefaultProperties": default_props,
-            "SupportedTargets": {
-                plat["CanonicalName"]: supported_target,
-            },
-        }
+
+def default_xcode_build(xcode_version: str) -> str:
+    return xcode_version.split(".")[0] + "A0"
+
+
+def _archs(platform_key: str) -> list[str]:
+    return [triple.split("-")[0] for triple in PLATFORM_CONFIGS[platform_key].target_triples]
+
+
+def _version_map(platform_key: str, sdk_version: str) -> dict:
+    if PLATFORMS[platform_key]["sys"] != "xros":
+        return {}
+    pairs = list(_VISIONOS_VERSIONS)
+    for major in range(26, int(sdk_version.split(".")[0]) + 1):
+        pairs.append(("{}.0".format(major), "{}.0".format(major)))
+    pairs.append((sdk_version, sdk_version))
+    forward = {ios: xros for ios, xros in pairs}
+    backward = {xros: ios for ios, xros in pairs}
+    return {
+        "VersionMap": {
+            "iOS_visionOS": forward,
+            "iOS_xrOS": forward,
+            "visionOS_iOS": backward,
+            "xrOS_iOS": backward,
+        },
+    }
+
+
+def _default_properties(platform_key: str) -> dict[str, str]:
+    platform = PLATFORMS[platform_key]
+    properties = {
+        "DEAD_CODE_STRIPPING": "YES",
+        "DEFAULT_COMPILER": DEFAULT_COMPILER,
+        "PLATFORM_NAME": platform["name"],
+    }
+    if platform["env"] or platform["sys"] == "macos":
+        properties.update({"CODE_SIGN_IDENTITY": "-", "ENTITLEMENTS_REQUIRED": "NO"})
     else:
-        return {
-            "CanonicalName": f"{platform_name.lower()}{sdk_version}",
-            "DisplayName": platform_name,
-            "Version": sdk_version,
-            "MaximumDeploymentTarget": sdk_version,
-            "MinimalDisplayName": sdk_version,
-            "DefaultProperties": {
-                "PLATFORM_NAME": platform_name.lower(),
-            },
-            "SupportedTargets": {
-                platform_name.lower(): {
-                    "DefaultDeploymentTarget": deployment_target,
-                },
-            },
-            "IsBaseSDK": "YES",
-        }
+        properties.update({"CODE_SIGN_IDENTITY": "Apple Development", "ENTITLEMENTS_REQUIRED": "YES"})
+    if platform["env"]:
+        properties["AD_HOC_CODE_SIGNING_ALLOWED"] = "YES"
+    return properties
 
 
-def generate_sdk_settings(
-    platform_name: str,
-    sdk_version: str,
-    deployment_target: str | None = None,
-    platform_key: str | None = None,
-) -> str:
-    """Generate SDKSettings.json for an SDK."""
-    settings = _build_sdk_settings(
-        platform_name, sdk_version, deployment_target, platform_key,
-    )
-    return json.dumps(settings, indent=2) + "\n"
+def sdk_settings(platform_key: str, sdk_version: str) -> dict:
+    platform = PLATFORMS[platform_key]
+    target = {
+        "Archs": _archs(platform_key),
+        "BuildVersionPlatformID": platform["build_id"],
+        "ClangRuntimeLibraryPlatformName": platform["runtime"],
+        "DefaultDeploymentTarget": sdk_version,
+        "DeviceFamilies": platform["families"],
+        "LLVMTargetTripleEnvironment": platform["env"],
+        "LLVMTargetTripleSys": platform["sys"],
+        "LLVMTargetTripleVendor": "apple",
+        "MaximumDeploymentTarget": sdk_version + ".99",
+        "MinimumDeploymentTarget": platform["minimum"],
+        "PlatformFamilyName": platform["family_name"],
+        "SystemPrefix": "",
+    }
+    return dict(_version_map(platform_key, sdk_version), **{
+        "CanonicalName": platform["name"] + sdk_version,
+        "CustomProperties": {},
+        "DefaultDeploymentTarget": sdk_version,
+        "DefaultProperties": _default_properties(platform_key),
+        "DisplayName": "{} {}".format(platform["display"], sdk_version),
+        "IsBaseSDK": "YES",
+        "MaximumDeploymentTarget": sdk_version + ".99",
+        "MinimalDisplayName": sdk_version,
+        "SupportedTargets": {platform["name"]: target},
+        "Version": sdk_version,
+    })
 
 
-def generate_sdk_settings_plist(
-    platform_name: str,
-    sdk_version: str,
-    deployment_target: str | None = None,
-    platform_key: str | None = None,
-) -> bytes:
-    """Generate SDKSettings.plist (binary plist) for an SDK."""
-    settings = _build_sdk_settings(
-        platform_name, sdk_version, deployment_target, platform_key,
-    )
-    return plistlib.dumps(settings, fmt=plistlib.FMT_XML)
+def generate_sdk_settings(platform_key: str, sdk_version: str) -> str:
+    return json.dumps(sdk_settings(platform_key, sdk_version), indent=2, sort_keys=True) + "\n"
 
 
-def generate_info_plist(
-    platform_name: str,
-    sdk_version: str,
-    platform_key: str | None = None,
-) -> str:
-    """Generate Info.plist for the platform.
-
-    The ``Name`` key is critical: xcrun matches SDKs by this field
-    (e.g. ``iphonesimulator``).
-    """
-    plat = _PLATFORM_SETTINGS.get(platform_key or "")
-    # xcrun matches on the lowercase canonical name (e.g. "iphonesimulator")
-    name = plat["CanonicalName"] if plat else platform_name.lower()
-    identifier = f"com.apple.platform.{name}" if plat else ""
-
-    default_compiler = "com.apple.compilers.llvm.clang.1_0"
-
-    lines = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
-        '<plist version="1.0">',
-        '<dict>',
-        '    <key>CFBundleName</key>',
-        f'    <string>{platform_name}</string>',
-        '    <key>CFBundleShortVersionString</key>',
-        f'    <string>{sdk_version}</string>',
-        '    <key>CFBundleVersion</key>',
-        f'    <string>{sdk_version}</string>',
-        # DefaultProperties — environment_plist reads DEFAULT_COMPILER here
-        '    <key>DefaultProperties</key>',
-        '    <dict>',
-        '        <key>DEFAULT_COMPILER</key>',
-        f'        <string>{default_compiler}</string>',
-    ]
-    if plat:
-        lines += [
-            '        <key>PLATFORM_NAME</key>',
-            f'        <string>{plat["DefaultProperties"]["PLATFORM_NAME"]}</string>',
-        ]
-    lines += [
-        '    </dict>',
-        '    <key>Name</key>',
-        f'    <string>{name}</string>',
-        '    <key>Version</key>',
-        f'    <string>{sdk_version}</string>',
-    ]
-    if identifier:
-        lines += [
-            '    <key>Identifier</key>',
-            f'    <string>{identifier}</string>',
-        ]
-    lines += [
-        '</dict>',
-        '</plist>',
-        '',
-    ]
-    return '\n'.join(lines)
+def generate_sdk_settings_plist(platform_key: str, sdk_version: str) -> bytes:
+    return plistlib.dumps(sdk_settings(platform_key, sdk_version), sort_keys=True)
 
 
-def generate_system_version_plist(sdk_version: str) -> str:
-    """Generate System/Library/CoreServices/SystemVersion.plist.
+def generate_info_plist(platform_key: str, sdk_version: str) -> bytes:
+    platform = PLATFORMS[platform_key]
+    sdk_prefix = PLATFORM_CONFIGS[platform_key].sdk_prefix
+    return plistlib.dumps({
+        "AdditionalInfo": {
+            "CFBundleSupportedPlatforms": [sdk_prefix],
+            "DTPlatformName": platform["name"],
+            "DTPlatformVersion": sdk_version,
+        },
+        "CFBundleIdentifier": "com.apple.platform." + platform["name"],
+        "CFBundleName": sdk_prefix,
+        "CFBundleShortVersionString": sdk_version,
+        "CFBundleVersion": sdk_version,
+        "DefaultProperties": {
+            "DEFAULT_COMPILER": DEFAULT_COMPILER,
+            "PLATFORM_NAME": platform["name"],
+        },
+        "Description": platform["family_name"] + (" Simulator" if platform["env"] else ""),
+        "FamilyIdentifier": platform["family"],
+        "FamilyName": platform["family_name"],
+        "Identifier": "com.apple.platform." + platform["name"],
+        "Name": platform["name"],
+        "Type": "Platform",
+        "Version": sdk_version,
+    }, sort_keys=True)
 
-    The ported ``sw_vers`` tool reads this file to report the macOS
-    version.  ``environment_plist`` (from rules_apple) invokes
-    ``sw_vers --buildVersion`` so at least one SDK must contain this
-    plist for cross-compilation to succeed on Linux.
-    """
-    return "\n".join([
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
-        '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
-        '<plist version="1.0">',
-        '<dict>',
-        '    <key>ProductBuildVersion</key>',
-        f'    <string>0CFFFF</string>',
-        '    <key>ProductName</key>',
-        '    <string>macOS</string>',
-        '    <key>ProductVersion</key>',
-        f'    <string>{sdk_version}</string>',
-        '</dict>',
-        '</plist>',
-        '',
-    ])
+
+def generate_system_version_plist(platform_key: str, sdk_version: str, build: str) -> bytes:
+    return plistlib.dumps({
+        "ProductBuildVersion": build,
+        "ProductName": PLATFORMS[platform_key]["product"],
+        "ProductVersion": sdk_version,
+    }, sort_keys=True)
 
 
-def generate_xcode_version_plist(sdk_version: str) -> str:
-    """Generate Xcode.app/Contents/version.plist.
-
-    ``environment_plist`` reads ``CFBundleShortVersionString`` and
-    ``ProductBuildVersion`` from this file to populate ``DTXcode`` and
-    ``DTXcodeBuild`` in the environment plist.  The version string must
-    contain at least two dot-separated components so that the shell
-    ``printf '%02d%d%d'`` formatting does not fail.
-    """
-    # Synthesise an Xcode-style version from the SDK version.
-    # e.g. SDK "26.2" → Xcode "16.2" (subtract 10 from major).
-    parts = sdk_version.split(".")
-    major = int(parts[0]) - 10 if len(parts) >= 1 else 0
-    minor = int(parts[1]) if len(parts) >= 2 else 0
-    version_str = f"{major}.{minor}"
-
-    return "\n".join([
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
-        '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
-        '<plist version="1.0">',
-        '<dict>',
-        '    <key>CFBundleShortVersionString</key>',
-        f'    <string>{version_str}</string>',
-        '    <key>ProductBuildVersion</key>',
-        '    <string>0CFFFF</string>',
-        '</dict>',
-        '</plist>',
-        '',
-    ])
+def generate_xcode_version_plist(xcode_version: str, xcode_build: str) -> bytes:
+    return plistlib.dumps({
+        "CFBundleShortVersionString": xcode_version,
+        "CFBundleVersion": xcode_version,
+        "ProductBuildVersion": xcode_build,
+    }, sort_keys=True)

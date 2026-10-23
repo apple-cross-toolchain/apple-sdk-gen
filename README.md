@@ -11,9 +11,15 @@ and their symbols, then assembles stub SDKs containing:
 - **Objective-C umbrella headers** with type declarations, class interfaces, protocols, and enums
 - **Module maps** for Clang module imports
 - **Swift interfaces** (`.swiftinterface`) for Swift cross-compilation
+- **The Darwin Swift runtime** from swift.org's macOS toolchain package: the
+  standard library's `.swiftinterface` modules, `libswift*.tbd` stubs with the
+  exported symbols of its dylibs, the shims, the clang resource directory and
+  the compatibility archives (`--swift-version`)
+- **libSystem, libobjc and libc++ stubs** carrying the symbol lists of a real
+  SDK (`tools/extract-darwin-libs.py` refreshes them from an installed Xcode)
 - **C stdlib / POSIX headers** from Apple open-source distributions
 - **C++ standard library headers** from upstream LLVM
-- **SDKSettings.json** and **Info.plist** matching Xcode's metadata format
+- **SDKSettings.json**, **Info.plist** and **version.plist** matching Xcode's metadata format
 
 Output replicates the Xcode SDK directory structure:
 
@@ -21,10 +27,10 @@ Output replicates the Xcode SDK directory structure:
 output/Xcode.app/Contents/Developer/Platforms/
 ├── iPhoneOS.platform/Developer/SDKs/
 │   ├── iPhoneOS.sdk/            ← real directory
-│   └── iPhoneOS18.0.sdk         → iPhoneOS.sdk (symlink)
+│   └── iPhoneOS27.0.sdk         → iPhoneOS.sdk (symlink)
 ├── iPhoneSimulator.platform/Developer/SDKs/
 │   ├── iPhoneSimulator.sdk/
-│   └── iPhoneSimulator18.0.sdk  → iPhoneSimulator.sdk
+│   └── iPhoneSimulator27.0.sdk  → iPhoneSimulator.sdk
 ├── MacOSX.platform/...
 ├── AppleTVOS.platform/...
 ├── AppleTVSimulator.platform/...
@@ -34,17 +40,21 @@ output/Xcode.app/Contents/Developer/Platforms/
 └── XRSimulator.platform/...
 ```
 
+Without `--swift-stdlib-path`, no file in the output is copied from an Xcode
+SDK.
+
 ## Quick start
 
 ```bash
 # Generate iOS and macOS SDKs (default)
-python3 -m tools.apple_sdk_gen --sdk-version 18.0 --all-frameworks
+python3 -m tools.apple_sdk_gen --sdk-version 27.0 --all-frameworks
 
-# Generate all platforms with simulators and full headers
+# Generate all platforms with simulators, full headers and the Swift runtime
 python3 -m tools.apple_sdk_gen \
   --platforms ios,macos,tvos,watchos,visionos \
   --include-simulators \
-  --sdk-version 18.0 \
+  --sdk-version 27.0 \
+  --swift-version 6.4.0 \
   --all-frameworks \
   --include-libc \
   --include-swift \
@@ -59,7 +69,7 @@ First run can take up to several hours, but API responses are cached locally in
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--sdk-version` | *(required)* | SDK version to generate (e.g. `18.0`) |
+| `--sdk-version` | *(required)* | SDK version to generate (e.g. `27.0`) |
 | `--platforms` | `ios,macos` | Comma-separated: `ios`, `macos`, `tvos`, `watchos`, `visionos` |
 | `--include-simulators` | off | Also generate simulator SDKs for each device platform |
 | `--all-frameworks` | off | Generate all available frameworks |
@@ -68,11 +78,24 @@ First run can take up to several hours, but API responses are cached locally in
 | `--include-swift` | off | Generate `.swiftinterface` files |
 | `--include-libc` | off | Download C stdlib/POSIX headers from Apple OSS |
 | `--include-cxx` | off | Download C++ stdlib headers from LLVM |
+| `--swift-version` | none | swift.org release whose macOS package supplies the Darwin Swift runtime (e.g. `6.4.0`) |
+| `--swift-pkg` | download | Local copy of that package |
+| `--swift-pkg-sha256` | known digest | Expected sha256 of the package |
+| `--xcode-version` | from `--sdk-version` | Xcode version recorded in `version.plist` |
+| `--xcode-build` | `<major>A0` | Xcode build recorded in `version.plist` |
 | `--output` | `./output` | Output directory |
 | `--cache-dir` | `./.cache` | Cache directory for API responses |
 | `--concurrency` | `10` | Max concurrent API requests |
 | `--rate-limit` | `10.0` | API requests per second |
 | `-v` / `-vv` | quiet | Verbosity (INFO / DEBUG) |
+
+Code built against an SDK generated with `--swift-version` must be compiled
+with that same Swift release.
+
+## Releases
+
+Every push to `main` builds all platforms and publishes
+`stub-sdks-<sdk version>.tar.zst`, holding `Xcode.app`, as a GitHub release.
 
 ## Limitations
 

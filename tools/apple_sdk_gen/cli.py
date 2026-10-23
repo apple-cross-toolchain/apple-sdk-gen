@@ -5,6 +5,7 @@ import asyncio
 import sys
 
 from .config import PLATFORM_CONFIGS
+from .generators.sdk_metadata import default_xcode_build, default_xcode_version
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -94,6 +95,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              ".swiftinterface files from (usr/lib/swift/*.swiftmodule/)",
     )
     parser.add_argument(
+        "--swift-version",
+        type=str,
+        default=None,
+        help="swift.org release whose macOS package supplies the Darwin Swift "
+             "runtime, shims and clang resource directory (e.g. 6.4.0)",
+    )
+    parser.add_argument(
+        "--swift-pkg",
+        type=str,
+        default=None,
+        help="Local copy of that package instead of downloading it",
+    )
+    parser.add_argument(
+        "--swift-pkg-sha256",
+        type=str,
+        default=None,
+        help="Expected sha256 of the package",
+    )
+    parser.add_argument(
+        "--xcode-version",
+        type=str,
+        default=None,
+        help="Xcode version recorded in version.plist (default: derived from --sdk-version)",
+    )
+    parser.add_argument(
+        "--xcode-build",
+        type=str,
+        default=None,
+        help="Xcode build recorded in version.plist (default: <major>A0)",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="count",
         default=0,
@@ -101,6 +133,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     args = parser.parse_args(argv)
+
+    if args.swift_pkg and not args.swift_version:
+        parser.error("--swift-pkg requires --swift-version")
+    args.xcode_version = args.xcode_version or default_xcode_version(args.sdk_version)
+    args.xcode_build = args.xcode_build or default_xcode_build(args.xcode_version)
 
     # Validate platforms
     platforms = [p.strip() for p in args.platforms.split(",")]

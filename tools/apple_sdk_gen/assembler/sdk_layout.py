@@ -37,6 +37,8 @@ def assemble_sdk(
     sdk_version: str,
     frameworks: dict[str, list[Symbol]],
     include_swift: bool = False,
+    xcode_version: str = "",
+    xcode_build: str = "",
 ) -> Path:
     """Assemble a complete SDK directory structure.
 
@@ -55,7 +57,7 @@ def assemble_sdk(
     version_plist = xcode_contents / "version.plist"
     if not version_plist.exists():
         xcode_contents.mkdir(parents=True, exist_ok=True)
-        version_plist.write_text(generate_xcode_version_plist(sdk_version))
+        version_plist.write_bytes(generate_xcode_version_plist(xcode_version, xcode_build))
 
     # Create Toolchains directory structure so the repo rule can copy
     # Swift binaries and ported tools into it without mkdir failures.
@@ -96,28 +98,32 @@ def assemble_sdk(
     versioned_link.symlink_to(base_sdk_name)
 
     # SDKSettings.json and SDKSettings.plist (xcrun needs the plist to discover SDKs)
-    settings = generate_sdk_settings(
-        cfg.sdk_prefix, sdk_version, platform_key=platform_key,
-    )
-    (sdk_root / "SDKSettings.json").write_text(settings)
-    settings_plist = generate_sdk_settings_plist(
-        cfg.sdk_prefix, sdk_version, platform_key=platform_key,
-    )
-    (sdk_root / "SDKSettings.plist").write_bytes(settings_plist)
+    (sdk_root / "SDKSettings.json").write_text(generate_sdk_settings(platform_key, sdk_version))
+    (sdk_root / "SDKSettings.plist").write_bytes(generate_sdk_settings_plist(platform_key, sdk_version))
 
     # SystemVersion.plist — needed by the ported sw_vers tool on Linux.
     # sw_vers iterates all SDK targets looking for this file; placing it
     # in every SDK ensures it's found regardless of platform selection.
     core_services = sdk_root / "System" / "Library" / "CoreServices"
     core_services.mkdir(parents=True, exist_ok=True)
-    (core_services / "SystemVersion.plist").write_text(
-        generate_system_version_plist(sdk_version)
+    (core_services / "SystemVersion.plist").write_bytes(
+        generate_system_version_plist(platform_key, sdk_version, xcode_build)
     )
 
     # Platform Info.plist
     platform_dir = platforms_dir / cfg.platform_dir
-    info_plist = generate_info_plist(cfg.sdk_prefix, sdk_version, platform_key=platform_key)
-    (platform_dir / "Info.plist").write_text(info_plist)
+    (platform_dir / "Info.plist").write_bytes(generate_info_plist(platform_key, sdk_version))
+
+    for directory in (
+        sdk_root / "System" / "Library" / "Frameworks",
+        sdk_root / "usr" / "include",
+        sdk_root / "usr" / "lib",
+        platform_dir / "Developer" / "Library" / "Frameworks",
+        platform_dir / "Developer" / "Library" / "PrivateFrameworks",
+        platform_dir / "Developer" / "usr" / "lib",
+        platform_dir / "usr" / "lib",
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
 
     # TBD targets for this platform
     tbd_targets = tbd_targets_for_platform(platform_key, sdk_version)

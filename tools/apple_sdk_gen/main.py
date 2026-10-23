@@ -4,6 +4,7 @@ import asyncio
 import argparse
 import logging
 import sys
+import tempfile
 from pathlib import Path
 
 from .assembler.sdk_layout import assemble_sdk
@@ -21,6 +22,7 @@ from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
 from .supplements.commoncrypto import install_commoncrypto_headers
+from .supplements.darwin_libs import install_darwin_lib_stubs
 from .supplements.swift_frameworks import install_framework_swiftmodules
 from .supplements.libc import install_libc_headers
 from .supplements.libcxx import install_libcxx_headers
@@ -30,6 +32,7 @@ from .supplements.reference_headers import install_reference_headers
 from .supplements.reference_libs import install_reference_libs
 from .supplements.reference_toolchain import install_reference_clang_resource
 from .supplements.rewrite_swiftinterface import rewrite_swiftinterface_versions
+from .supplements.swift_org import SwiftRuntime
 from .supplements.swift_shims import install_swift_shims
 from .supplements.swift_stdlib import install_swift_stdlib
 from .supplements.system_libs import install_system_lib_stubs
@@ -39,6 +42,18 @@ logger = logging.getLogger(__name__)
 
 
 async def run(args: argparse.Namespace) -> None:
+    swift_work = None
+    if args.swift_version:
+        Path(args.cache_dir).mkdir(parents=True, exist_ok=True)
+        swift_work = tempfile.TemporaryDirectory(prefix="swift-org-", dir=args.cache_dir)
+    try:
+        await _run(args, Path(swift_work.name) if swift_work else None)
+    finally:
+        if swift_work:
+            swift_work.cleanup()
+
+
+async def _run(args: argparse.Namespace, swift_work: Path | None) -> None:
     # Configure logging
     level = logging.WARNING
     if args.verbose >= 1:
@@ -57,6 +72,17 @@ async def run(args: argparse.Namespace) -> None:
 
     cache = CacheDB(cache_dir)
     logger.info("Cache: %d entries", cache.size())
+
+    runtime = None
+    if swift_work:
+        print(f"Installing the Swift {args.swift_version} Darwin runtime...", file=sys.stderr)
+        runtime = SwiftRuntime.from_package(
+            args.swift_version,
+            Path(args.swift_pkg) if args.swift_pkg else None,
+            args.swift_pkg_sha256,
+            swift_work,
+        )
+        runtime.install_toolchain(output_dir, args.platforms)
 
     async with APIClient(
         concurrency=args.concurrency,
@@ -163,9 +189,14 @@ async def run(args: argparse.Namespace) -> None:
                 sdk_version=args.sdk_version,
                 frameworks=platform_frameworks,
                 include_swift=args.include_swift,
+                xcode_version=args.xcode_version,
+                xcode_build=args.xcode_build,
             )
 
             tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
+
+            print("Installing Darwin library stubs...", file=sys.stderr)
+            install_darwin_lib_stubs(sdk_root=sdk_path, tbd_targets=tbd_targets)
 
             # Always generate system library TBD stubs (libz, libsqlite3, etc.)
             print("Installing system library stubs...", file=sys.stderr)
@@ -187,7 +218,6 @@ async def run(args: argparse.Namespace) -> None:
                 install_libc_headers(
                     sdk_root=sdk_path,
                     sdk_version=args.sdk_version,
-                    tbd_targets=tbd_targets,
                     cache_dir=cache_dir,
                 )
 
@@ -227,12 +257,11 @@ async def run(args: argparse.Namespace) -> None:
                 install_libcxx_headers(
                     sdk_root=sdk_path,
                     sdk_version=args.sdk_version,
-                    tbd_targets=tbd_targets,
                     cache_dir=cache_dir,
                 )
 
             # Install Swift shim headers if Swift is enabled
-            if args.include_swift:
+            if args.include_swift and runtime is None:
                 print("Installing Swift shim headers...", file=sys.stderr)
                 install_swift_shims(
                     sdk_root=sdk_path,
@@ -272,6 +301,10 @@ async def run(args: argparse.Namespace) -> None:
                     platform_dir / "Developer" / "Library" / "Frameworks"
                 )
                 logger.info("Rewrote %d .swiftinterface files", count)
+
+            if runtime:
+                print("Installing the Swift Darwin runtime...", file=sys.stderr)
+                runtime.install_sdk(sdk_path, platform_key)
 
             print(f"SDK generated at: {sdk_path}", file=sys.stderr)
 

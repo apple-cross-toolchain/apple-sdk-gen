@@ -71,3 +71,46 @@ def generate_tbd(
 def _format_flow_list(items: list[str]) -> str:
     """Format a list as YAML flow style: [ item1, item2 ]"""
     return "[ " + ", ".join(items) + " ]"
+
+
+EXPORT_KEYS = ("symbols", "objc-classes", "objc-eh-types", "objc-ivars", "weak-symbols", "thread-local-symbols")
+
+
+def _quoted_flow_list(items: list[str]) -> str:
+    return "[ " + ", ".join("'{}'".format(item.replace("'", "''")) for item in items) + " ]"
+
+
+def tbd_document(
+    targets: list[str],
+    install_name: str,
+    exports: list[tuple[list[str], dict[str, list[str]]]] = (),
+    current_version: str | None = None,
+    compatibility_version: str | None = None,
+    reexports: list[str] = (),
+    flags: list[str] = (),
+    swift_abi_version: int = 0,
+) -> str:
+    lines = ["--- !tapi-tbd", "tbd-version: 4", "targets: " + _format_flow_list(targets)]
+    if flags:
+        lines.append("flags: " + _format_flow_list(list(flags)))
+    lines.append(f"install-name: '{install_name}'")
+    if current_version:
+        lines.append(f"current-version: {current_version}")
+    if compatibility_version:
+        lines.append(f"compatibility-version: {compatibility_version}")
+    if swift_abi_version:
+        lines.append(f"swift-abi-version: {swift_abi_version}")
+    if reexports:
+        lines.append("reexported-libraries:")
+        lines.append("  - targets: " + _format_flow_list(targets))
+        lines.append("    libraries: " + _quoted_flow_list(list(reexports)))
+    exports = [(entry_targets, groups) for entry_targets, groups in exports if any(groups.get(key) for key in EXPORT_KEYS)]
+    if exports:
+        lines.append("exports:")
+    for entry_targets, groups in exports:
+        lines.append("  - targets: " + _format_flow_list(entry_targets))
+        for key in EXPORT_KEYS:
+            if groups.get(key):
+                lines.append(f"    {key}: " + _quoted_flow_list(sorted(groups[key])))
+    lines.append("...")
+    return "\n".join(lines) + "\n"

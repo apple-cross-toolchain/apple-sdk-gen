@@ -2,8 +2,7 @@
 
 Fetches the per-component ``libcxx-*.src.tar.xz`` tarball from GitHub
 (typically ~2 MB) and extracts ``include/`` into
-``<sdk>/usr/include/c++/v1/``.  Matching ``libc++.tbd`` and
-``libc++abi.tbd`` stubs are generated so ``-lc++`` resolves at link time.
+``<sdk>/usr/include/c++/v1/``.
 """
 
 from __future__ import annotations
@@ -38,7 +37,6 @@ _RELEASE_URL = (
 def install_libcxx_headers(
     sdk_root: Path,
     sdk_version: str,
-    tbd_targets: list[str],
     cache_dir: Path,
 ) -> None:
     """Download libc++ headers and install them into the SDK."""
@@ -46,7 +44,6 @@ def install_libcxx_headers(
 
     tar_path = _download_tarball(llvm_version, cache_dir)
     _extract_headers(tar_path, llvm_version, sdk_root)
-    _generate_tbd_stubs(sdk_root, tbd_targets)
 
     logger.info(
         "Installed libc++ %s headers into %s/usr/include/c++/v1/",
@@ -118,147 +115,3 @@ def _extract_headers(tar_path: Path, llvm_version: str, sdk_root: Path) -> None:
         )
 
     logger.debug("Extracted libc++ headers from %s", tar_path.name)
-
-
-def _generate_tbd_stubs(sdk_root: Path, tbd_targets: list[str]) -> None:
-    """Generate libc++ and libc++abi TBD stubs."""
-    usr_lib = sdk_root / "usr" / "lib"
-    usr_lib.mkdir(parents=True, exist_ok=True)
-
-    targets_str = ", ".join(tbd_targets)
-
-    # ── libc++.tbd ───────────────────────────────────────────────────
-    (usr_lib / "libc++.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libc++.1.dylib'
-current-version: 1700.255.0
-reexported-libraries:
-  - targets:     [{targets_str}]
-    libraries:
-      - '/usr/lib/libc++abi.dylib'
-...
-""")
-
-    # ── libc++abi.tbd ────────────────────────────────────────────────
-    (usr_lib / "libc++abi.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libc++abi.dylib'
-current-version: 1700.255.0
-exports:
-  - targets:     [{targets_str}]
-    symbols:
-      - ___cxa_allocate_exception
-      - ___cxa_begin_catch
-      - ___cxa_end_catch
-      - ___cxa_free_exception
-      - ___cxa_rethrow
-      - ___cxa_throw
-      - ___cxa_guard_acquire
-      - ___cxa_guard_release
-      - ___cxa_guard_abort
-      - ___cxa_pure_virtual
-      - ___cxa_deleted_virtual
-      - ___cxa_atexit
-      - ___cxa_finalize
-      - ___cxa_demangle
-      - ___cxa_current_exception_type
-      - ___cxa_call_unexpected
-      - ___cxa_decrement_exception_refcount
-      - ___cxa_increment_exception_refcount
-      - ___cxa_current_primary_exception
-      - ___cxa_rethrow_primary_exception
-      - ___cxa_throw_bad_array_new_length
-      - ___cxa_uncaught_exceptions
-      - ___gxx_personality_v0
-      - __ZSt9terminatev
-      - __ZSt13set_terminatePFvvE
-      - __ZSt14get_unexpectedv
-      - __ZSt13get_terminatev
-      - __ZSt14set_unexpectedPFvvE
-      - __ZSt10unexpectedv
-      - __ZSt17current_exceptionv
-      - __ZSt17rethrow_exceptionNSt15__exception_ptr13exception_ptrE
-      - __ZSt18uncaught_exceptionv
-      - __ZSt19uncaught_exceptionsv
-      - __ZNSt9exceptionD2Ev
-      - __ZNSt9exceptionD1Ev
-      - __ZNSt9exceptionD0Ev
-      - __ZNKSt9exception4whatEv
-      - __ZNSt13bad_exceptionD2Ev
-      - __ZNSt13bad_exceptionD1Ev
-      - __ZNSt13bad_exceptionD0Ev
-      - __ZNKSt13bad_exception4whatEv
-      - __ZNSt9bad_allocD2Ev
-      - __ZNSt9bad_allocD1Ev
-      - __ZNSt9bad_allocD0Ev
-      - __ZNKSt9bad_alloc4whatEv
-      - __ZNSt20bad_array_new_lengthD2Ev
-      - __ZNSt20bad_array_new_lengthD1Ev
-      - __ZNSt20bad_array_new_lengthD0Ev
-      - __ZNKSt20bad_array_new_length4whatEv
-      - __ZNSt8bad_castD2Ev
-      - __ZNSt8bad_castD1Ev
-      - __ZNSt8bad_castD0Ev
-      - __ZNKSt8bad_cast4whatEv
-      - __ZNSt10bad_typeidD2Ev
-      - __ZNSt10bad_typeidD1Ev
-      - __ZNSt10bad_typeidD0Ev
-      - __ZNKSt10bad_typeid4whatEv
-      - __ZNSt13runtime_errorC1ERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE
-      - __ZNSt13runtime_errorC2ERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE
-      - __ZNSt13runtime_errorC1EPKc
-      - __ZNSt13runtime_errorC2EPKc
-      - __ZNSt13runtime_errorD2Ev
-      - __ZNSt13runtime_errorD1Ev
-      - __ZNSt13runtime_errorD0Ev
-      - __ZNKSt13runtime_error4whatEv
-      - __ZNSt11logic_errorC1ERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE
-      - __ZNSt11logic_errorC2ERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE
-      - __ZNSt11logic_errorC1EPKc
-      - __ZNSt11logic_errorC2EPKc
-      - __ZNSt11logic_errorD2Ev
-      - __ZNSt11logic_errorD1Ev
-      - __ZNSt11logic_errorD0Ev
-      - __ZNKSt11logic_error4whatEv
-      - __ZdlPv
-      - __ZdlPvRKSt9nothrow_t
-      - __ZdlPvm
-      - __ZdlPvSt11align_val_t
-      - __ZdlPvmSt11align_val_t
-      - __ZdaPv
-      - __ZdaPvRKSt9nothrow_t
-      - __ZdaPvm
-      - __ZdaPvSt11align_val_t
-      - __ZdaPvmSt11align_val_t
-      - __Znwm
-      - __ZnwmRKSt9nothrow_t
-      - __ZnwmSt11align_val_t
-      - __ZnwmSt11align_val_tRKSt9nothrow_t
-      - __Znam
-      - __ZnamRKSt9nothrow_t
-      - __ZnamSt11align_val_t
-      - __ZnamSt11align_val_tRKSt9nothrow_t
-      - __ZTISt9exception
-      - __ZTISt13bad_exception
-      - __ZTISt9bad_alloc
-      - __ZTISt20bad_array_new_length
-      - __ZTISt8bad_cast
-      - __ZTISt10bad_typeid
-      - __ZTISt13runtime_error
-      - __ZTISt11logic_error
-      - __ZTSSt9exception
-      - __ZTSSt13bad_exception
-      - __ZTSSt9bad_alloc
-      - __ZTSSt20bad_array_new_length
-      - __ZTSSt8bad_cast
-      - __ZTSSt10bad_typeid
-      - __ZTSSt13runtime_error
-      - __ZTSSt11logic_error
-...
-""")
-
-    logger.debug("Generated libc++ TBD stubs")

@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+env:
+  SDK_VERSION: "27.0"
+  SWIFT_VERSION: "6.4.0"
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -40,7 +44,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: cache
-          key: api-cache
+          key: api-cache-${{ github.run_id }}
+          restore-keys: api-cache-
 
       - name: Install dependencies
         run: pip install -e tools/
@@ -48,17 +53,21 @@ jobs:
       - name: Build all SDKs
         run: |
           python -m tools.apple_sdk_gen \
-            --sdk-version 26.2 \
+            --sdk-version "$SDK_VERSION" \
+            --swift-version "$SWIFT_VERSION" \
             --platforms ios,macos,tvos,watchos,visionos \
             --include-simulators \
             --all-frameworks \
             --include-swift \
             --include-libc \
             --include-cxx \
+            --cache-dir cache \
             -v
 
       - name: Bundle SDKs
-        run: tar -cf - -C output Xcode.app | zstd -19 -T0 -o apple-sdks.tar.zst
+        run: |
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2023-01-01 00:00Z' \
+            -cf - -C output Xcode.app | zstd -19 -T0 -o "stub-sdks-$SDK_VERSION.tar.zst"
 
       - name: Create tag
         run: |
@@ -72,4 +81,4 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes \
-            apple-sdks.tar.zst
+            "stub-sdks-$SDK_VERSION.tar.zst"

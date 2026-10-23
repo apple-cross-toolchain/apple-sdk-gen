@@ -18,8 +18,6 @@ Nine GitHub repositories are used:
 
 Stub headers are generated for POSIX/C functions not in any OSS repo
 (dlfcn.h, spawn.h, notify.h, etc.).
-
-Matching TBD stubs are generated for libSystem.B, libobjc.A, and libdispatch.
 """
 
 from __future__ import annotations
@@ -100,6 +98,17 @@ VERSION_TAGS: dict[str, dict[str, str]] = {
         "libplatform": "libplatform-359.60.3",
         "Libinfo": "Libinfo-592",
         "zlib": "zlib-96",
+        "CarbonHeaders": "CarbonHeaders-18.1",
+    },
+    "27.0": {
+        "Libc": "Libc-1752.120.2",
+        "xnu": "xnu-12377.121.6",
+        "libpthread": "libpthread-539.100.4",
+        "objc4": "objc4-951.7",
+        "libdispatch": "libdispatch-1542.100.32",
+        "libplatform": "libplatform-375.120.2",
+        "Libinfo": "Libinfo-600",
+        "zlib": "zlib-100.120.1",
         "CarbonHeaders": "CarbonHeaders-18.1",
     },
 }
@@ -226,7 +235,6 @@ _CARBONHEADERS = [
 def install_libc_headers(
     sdk_root: Path,
     sdk_version: str,
-    tbd_targets: list[str],
     cache_dir: Path,
 ) -> None:
     """Download Apple OSS headers and install them into the SDK."""
@@ -255,9 +263,6 @@ def install_libc_headers(
 
     # Generate stub POSIX/C headers not available from Apple OSS
     _generate_posix_stubs(usr_include)
-
-    # Generate TBD stubs for system libraries
-    _generate_tbd_stubs(sdk_root, tbd_targets)
 
     logger.info("Installed system headers into %s", usr_include)
 
@@ -589,318 +594,3 @@ int xattr_intent_with_flags(xattr_operation_intent_t, int);
             count += 1
 
     logger.info("Generated %d POSIX/C stub headers", count)
-
-
-def _generate_tbd_stubs(sdk_root: Path, tbd_targets: list[str]) -> None:
-    """Generate TBD stubs for system libraries."""
-    usr_lib = sdk_root / "usr" / "lib"
-    usr_lib.mkdir(parents=True, exist_ok=True)
-
-    targets_str = ", ".join(tbd_targets)
-
-    # ── libSystem.B ──────────────────────────────────────────────────
-    (usr_lib / "libSystem.B.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libSystem.B.dylib'
-current-version: 1345.100.2
-reexported-libraries:
-  - targets:     [{targets_str}]
-    libraries:
-      - '/usr/lib/system/libsystem_c.dylib'
-      - '/usr/lib/system/libsystem_kernel.dylib'
-      - '/usr/lib/system/libsystem_malloc.dylib'
-      - '/usr/lib/system/libsystem_pthread.dylib'
-      - '/usr/lib/system/libsystem_platform.dylib'
-      - '/usr/lib/system/libsystem_info.dylib'
-      - '/usr/lib/system/libdyld.dylib'
-      - '/usr/lib/system/libsystem_blocks.dylib'
-      - '/usr/lib/system/libsystem_darwin.dylib'
-      - '/usr/lib/system/libsystem_m.dylib'
-      - '/usr/lib/system/libsystem_trace.dylib'
-      - '/usr/lib/system/libxpc.dylib'
-      - '/usr/lib/system/libdispatch.dylib'
-      - '/usr/lib/system/libcorecrypto.dylib'
-      - '/usr/lib/system/libcommonCrypto.dylib'
-      - '/usr/lib/system/libsystem_asl.dylib'
-      - '/usr/lib/system/libsystem_notify.dylib'
-      - '/usr/lib/system/libsystem_sandbox.dylib'
-      - '/usr/lib/system/libcompiler_rt.dylib'
-      - '/usr/lib/system/libcopyfile.dylib'
-      - '/usr/lib/system/libremovefile.dylib'
-      - '/usr/lib/system/libmacho.dylib'
-...
-""")
-
-    # ── libc (re-exports libSystem) ──────────────────────────────────
-    (usr_lib / "libc.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libc.dylib'
-current-version: 1345.100.2
-reexported-libraries:
-  - targets:     [{targets_str}]
-    libraries:
-      - '/usr/lib/libSystem.B.dylib'
-...
-""")
-
-    # ── libobjc.A ────────────────────────────────────────────────────
-    (usr_lib / "libobjc.A.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libobjc.A.dylib'
-current-version: 228.0.0
-exports:
-  - targets:     [{targets_str}]
-    symbols:
-      - _objc_msgSend
-      - _objc_msgSendSuper
-      - _objc_msgSendSuper2
-      - _objc_msgSend_stret
-      - _objc_msgSendSuper_stret
-      - _objc_alloc
-      - _objc_alloc_init
-      - _objc_allocWithZone
-      - _objc_autoreleasePoolPush
-      - _objc_autoreleasePoolPop
-      - _objc_autorelease
-      - _objc_autoreleaseReturnValue
-      - _objc_retainAutoreleasedReturnValue
-      - _objc_unsafeClaimAutoreleasedReturnValue
-      - _objc_retain
-      - _objc_release
-      - _objc_storeStrong
-      - _objc_storeWeak
-      - _objc_loadWeakRetained
-      - _objc_destroyWeak
-      - _objc_initWeak
-      - _objc_moveWeak
-      - _objc_copyWeak
-      - _objc_retainBlock
-      - _objc_getAssociatedObject
-      - _objc_setAssociatedObject
-      - _objc_removeAssociatedObjects
-      - _objc_getClass
-      - _objc_getMetaClass
-      - _objc_lookUpClass
-      - _objc_getProtocol
-      - _objc_getRequiredClass
-      - _objc_enumerationMutation
-      - _objc_setEnumerationMutationHandler
-      - _objc_constructInstance
-      - _objc_destructInstance
-      - _objc_registerClassPair
-      - _objc_allocateClassPair
-      - _objc_disposeClassPair
-      - _objc_duplicateClass
-      - _objc_setProperty
-      - _objc_getProperty
-      - _objc_copyStruct
-      - _objc_opt_self
-      - _objc_opt_class
-      - _objc_opt_isKindOfClass
-      - _objc_opt_respondsToSelector
-      - _objc_opt_new
-      - _objc_exception_throw
-      - _objc_exception_rethrow
-      - _objc_begin_catch
-      - _objc_end_catch
-      - _objc_terminate
-      - _objc_sync_enter
-      - _objc_sync_exit
-      - _object_getClass
-      - _object_setClass
-      - _object_getClassName
-      - _object_getIndexedIvars
-      - _object_getIvar
-      - _object_setIvar
-      - _class_getName
-      - _class_getSuperclass
-      - _class_isMetaClass
-      - _class_getInstanceSize
-      - _class_getInstanceVariable
-      - _class_getClassVariable
-      - _class_getInstanceMethod
-      - _class_getClassMethod
-      - _class_getMethodImplementation
-      - _class_respondsToSelector
-      - _class_conformsToProtocol
-      - _class_copyMethodList
-      - _class_copyPropertyList
-      - _class_copyIvarList
-      - _class_copyProtocolList
-      - _class_addMethod
-      - _class_replaceMethod
-      - _class_addIvar
-      - _class_addProtocol
-      - _class_addProperty
-      - _class_getProperty
-      - _class_createInstance
-      - _method_getName
-      - _method_getImplementation
-      - _method_setImplementation
-      - _method_exchangeImplementations
-      - _method_getTypeEncoding
-      - _method_getNumberOfArguments
-      - _method_copyReturnType
-      - _method_copyArgumentType
-      - _method_getDescription
-      - _ivar_getName
-      - _ivar_getTypeEncoding
-      - _ivar_getOffset
-      - _property_getName
-      - _property_getAttributes
-      - _property_copyAttributeList
-      - _property_copyAttributeValue
-      - _protocol_getName
-      - _protocol_conformsToProtocol
-      - _protocol_getMethodDescription
-      - _protocol_copyMethodDescriptionList
-      - _protocol_copyPropertyList
-      - _protocol_copyProtocolList
-      - _sel_getName
-      - _sel_registerName
-      - _sel_isEqual
-      - _NSSelectorFromString
-      - _NSStringFromSelector
-      - _NSClassFromString
-      - _NSStringFromClass
-      - _NSLog
-      - _NSLogv
-    objc-classes:
-      - _NSObject
-      - _NSProxy
-      - _NSAutoreleasePool
-      - _Protocol
-...
-""")
-
-    # ── libobjc (re-exports libobjc.A) ───────────────────────────────
-    (usr_lib / "libobjc.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/libobjc.dylib'
-current-version: 228.0.0
-reexported-libraries:
-  - targets:     [{targets_str}]
-    libraries:
-      - '/usr/lib/libobjc.A.dylib'
-...
-""")
-
-    # ── libdispatch ──────────────────────────────────────────────────
-    (usr_lib / "libdispatch.tbd").write_text(f"""\
---- !tapi-tbd
-tbd-version:     4
-targets:         [{targets_str}]
-install-name:    '/usr/lib/system/libdispatch.dylib'
-current-version: 1325.100.2
-exports:
-  - targets:     [{targets_str}]
-    symbols:
-      - _dispatch_async
-      - _dispatch_async_f
-      - _dispatch_sync
-      - _dispatch_sync_f
-      - _dispatch_after
-      - _dispatch_after_f
-      - _dispatch_apply
-      - _dispatch_apply_f
-      - _dispatch_barrier_async
-      - _dispatch_barrier_async_f
-      - _dispatch_barrier_sync
-      - _dispatch_barrier_sync_f
-      - _dispatch_group_create
-      - _dispatch_group_async
-      - _dispatch_group_async_f
-      - _dispatch_group_enter
-      - _dispatch_group_leave
-      - _dispatch_group_notify
-      - _dispatch_group_notify_f
-      - _dispatch_group_wait
-      - _dispatch_semaphore_create
-      - _dispatch_semaphore_wait
-      - _dispatch_semaphore_signal
-      - _dispatch_once
-      - _dispatch_once_f
-      - _dispatch_queue_create
-      - _dispatch_queue_create_with_target
-      - _dispatch_queue_get_label
-      - _dispatch_get_main_queue
-      - _dispatch_get_global_queue
-      - _dispatch_main
-      - _dispatch_time
-      - _dispatch_walltime
-      - _dispatch_source_create
-      - _dispatch_source_set_event_handler
-      - _dispatch_source_set_event_handler_f
-      - _dispatch_source_set_cancel_handler
-      - _dispatch_source_set_cancel_handler_f
-      - _dispatch_source_cancel
-      - _dispatch_source_get_data
-      - _dispatch_source_get_handle
-      - _dispatch_source_get_mask
-      - _dispatch_source_merge_data
-      - _dispatch_source_set_timer
-      - _dispatch_data_create
-      - _dispatch_data_get_size
-      - _dispatch_data_create_map
-      - _dispatch_data_apply
-      - _dispatch_data_create_subrange
-      - _dispatch_data_create_concat
-      - _dispatch_data_copy_region
-      - _dispatch_io_create
-      - _dispatch_io_read
-      - _dispatch_io_write
-      - _dispatch_io_close
-      - _dispatch_io_set_high_water
-      - _dispatch_io_set_low_water
-      - _dispatch_io_set_interval
-      - _dispatch_read
-      - _dispatch_write
-      - _dispatch_retain
-      - _dispatch_release
-      - _dispatch_set_target_queue
-      - _dispatch_set_finalizer_f
-      - _dispatch_suspend
-      - _dispatch_resume
-      - _dispatch_activate
-      - _dispatch_assert_queue
-      - _dispatch_assert_queue_barrier
-      - _dispatch_assert_queue_not
-      - _dispatch_block_create
-      - _dispatch_block_create_with_qos_class
-      - _dispatch_block_perform
-      - _dispatch_block_wait
-      - _dispatch_block_notify
-      - _dispatch_block_cancel
-      - _dispatch_block_testcancel
-      - _dispatch_workloop_create
-      - _dispatch_workloop_create_inactive
-      - _dispatch_workloop_set_autorelease_frequency
-      - _dispatch_queue_attr_make_with_qos_class
-      - _dispatch_queue_attr_make_initially_inactive
-      - _dispatch_queue_attr_make_with_autorelease_frequency
-      - _dispatch_data_empty
-      - __dispatch_main_q
-      - __dispatch_source_type_data_add
-      - __dispatch_source_type_data_or
-      - __dispatch_source_type_data_replace
-      - __dispatch_source_type_mach_recv
-      - __dispatch_source_type_mach_send
-      - __dispatch_source_type_memorypressure
-      - __dispatch_source_type_proc
-      - __dispatch_source_type_read
-      - __dispatch_source_type_signal
-      - __dispatch_source_type_timer
-      - __dispatch_source_type_vnode
-      - __dispatch_source_type_write
-...
-""")
-
-    logger.debug("Generated system library TBD stubs")
