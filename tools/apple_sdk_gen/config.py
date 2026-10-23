@@ -271,7 +271,7 @@ SWIFT_OVERLAY_FRAMEWORKS: list[str] = [
 
 # Deprecated/legacy iOS-only frameworks
 _DEPRECATED_MOBILE: set[str] = {
-    "AssetsLibrary", "BusinessChat", "iAd", "Twitter",
+    "AssetsLibrary", "iAd", "Twitter",
 }
 
 # DriverKit sub-frameworks (macOS: System/DriverKit/ path, not System/Library/Frameworks/)
@@ -330,18 +330,17 @@ PLATFORM_EXCLUDED_MODULES: dict[str, set[str]] = {
 
     # ── tvOS ─────────────────────────────────────────────────────
     "tvos": {
-        "AppKit", "Quartz", "WatchKit", "IOKit", "CoreServices",
+        "AppKit", "Quartz", "WatchKit", "IOKit",
         "DriverKit",
         # Not in tvOS SDK
-        "ActivityKit", "AdServices", "ARKit", "ImageCaptureCore",
+        "ActivityKit", "AdServices", "ARKit", "BusinessChat", "ImageCaptureCore",
         "MarketplaceKit", "MediaExtension", "MessageUI",
         "NearbyInteraction", "PassKit", "SafetyKit", "SensorKit",
-        "ShaderGraph", "Spatial", "Speech", "StoreKitTest",
+        "ShaderGraph", "Spatial", "StoreKitTest",
         "TelephonyMessagingKit", "WebKit", "WidgetKit",
-        "WiFiAware", "WorkoutKit",
+        "WorkoutKit",
         # Supplementary/companion not on tvOS
-        "HealthKitUI", "MobileCoreServices",
-        "OpenAL", "StickerFoundation", "StickerKit",
+        "HealthKitUI", "StickerFoundation", "StickerKit",
         # dylib
         "AppleArchive",
         # Overlay frameworks not on tvOS
@@ -357,21 +356,20 @@ PLATFORM_EXCLUDED_MODULES: dict[str, set[str]] = {
 
     # ── watchOS ──────────────────────────────────────────────────
     "watchos": {
-        "AppKit", "Quartz", "UIKit", "IOKit", "CoreServices",
+        "AppKit", "Quartz", "IOKit",
         "DriverKit",
         # Not in watchOS SDK
-        "ActivityKit", "AdServices", "ARKit", "AudioToolbox",
+        "ActivityKit", "AdServices", "ARKit", "AudioToolbox", "BusinessChat",
         "CoreMediaIO", "CreateML", "DeviceDiscoveryUI", "hvf",
         "IdentityLookup", "IdentityLookupUI", "IntentsUI",
-        "LinkPresentation", "MarketplaceKit", "MediaAccessibility",
+        "MarketplaceKit", "MediaAccessibility",
         "MediaExtension", "MessageUI",
         "MetalPerformancePrimitives", "MetalPerformanceShaders",
         "Photos", "RealityFoundation", "RealityKit",
         "SensorKit", "ShaderGraph", "SharedWithYou", "SharedWithYouCore",
         "Spatial", "StoreKitTest", "TelephonyMessagingKit",
-        "VideoToolbox", "Vision", "WalletPasses", "WiFiAware",
+        "VideoToolbox", "WalletPasses", "WiFiAware",
         # Supplementary/companion not on watchOS
-        "HealthKitUI", "MobileCoreServices",
         "OpenAL", "StickerFoundation", "StickerKit",
         # dylib
         "AppleArchive",
@@ -391,13 +389,13 @@ PLATFORM_EXCLUDED_MODULES: dict[str, set[str]] = {
     "visionos": {
         "AppKit", "Quartz", "WatchKit",
         # Not in visionOS SDK
-        "ActivityKit", "DeviceDiscoveryUI", "DockKit",
+        "ActivityKit", "BusinessChat", "DeviceDiscoveryUI", "DockKit",
         "FamilyControls", "hvf", "ManagedSettings",
         "MarketplaceKit", "MediaExtension",
         "ProximityReader", "RoomPlan", "SensorKit",
         "ShaderGraph", "Spatial", "StoreKitTest",
         # Supplementary not on visionOS
-        "MobileCoreServices", "OpenAL",
+        "OpenAL",
         # dylib
         "AppleArchive",
         # Overlay frameworks not on visionOS
