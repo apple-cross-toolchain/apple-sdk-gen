@@ -196,7 +196,7 @@ async def _run(args: argparse.Namespace, swift_work: Path | None) -> None:
             tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
 
             print("Installing Darwin library stubs...", file=sys.stderr)
-            install_darwin_lib_stubs(sdk_root=sdk_path, tbd_targets=tbd_targets)
+            install_darwin_lib_stubs(sdk_root=sdk_path, platform_key=platform_key)
 
             # Always generate system library TBD stubs (libz, libsqlite3, etc.)
             print("Installing system library stubs...", file=sys.stderr)
