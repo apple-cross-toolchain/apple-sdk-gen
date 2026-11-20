@@ -129,6 +129,11 @@ def assemble_sdk(
     tbd_targets = tbd_targets_for_platform(platform_key, sdk_version)
     excluded = PLATFORM_EXCLUDED_MODULES.get(platform_key, set())
 
+    frameworks = {
+        name: [symbol.for_platform(cfg.name) for symbol in symbols]
+        for name, symbols in frameworks.items()
+    }
+
     # Generate each framework
     for fw_name, symbols in frameworks.items():
         # Apply name mapping (doc API name → real framework name)
