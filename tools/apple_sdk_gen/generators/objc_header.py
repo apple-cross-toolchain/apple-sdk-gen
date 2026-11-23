@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 
 from ..models.availability import availability_macro, deprecated_macro
@@ -561,6 +562,9 @@ def _render_struct_definition(
     avail = availability_macro(sym)
     suffix = f" {avail}" if avail else ""
 
+    # DocC uses a placeholder body when it lists the fields separately.
+    decl_text = re.sub(r"\s*\{\s*(?:\.\.\.|…)\s*\}", "", decl_text)
+
     # If the declaration already has a body, pass through
     if "{" in decl_text:
         if not decl_text.endswith(";"):
@@ -569,15 +573,16 @@ def _render_struct_definition(
 
     # Try to build the struct body from child symbols
     children = _find_children(sym, all_framework_symbols, all_symbols)
-    fields = []
+    fields: dict[str, str] = {}
     for child in children:
         if child.kind not in (SymbolKind.PROPERTY, SymbolKind.VAR):
             continue
         field_line = _normalize_struct_field(child)
         if field_line:
-            fields.append(f"    {field_line}")
+            fields[child.title] = field_line
 
-    if not fields:
+    order = sym.memberwise_fields
+    if not order or len(order) != len(fields) or set(order) != fields.keys():
         # Fall back to forward declaration
         if not decl_text.endswith(";"):
             decl_text += ";"
@@ -595,7 +600,7 @@ def _render_struct_definition(
         lines.append(f"typedef struct {struct_name} {{")
     else:
         lines.append(f"struct {struct_name} {{")
-    lines.extend(fields)
+    lines.extend(f"    {fields[name]}" for name in order)
     if decl_text.startswith("typedef"):
         lines.append(f"}} {struct_name};{suffix}")
     else:

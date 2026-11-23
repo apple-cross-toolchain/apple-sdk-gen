@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .types import PlatformName, SymbolKind, TokenKind
 
@@ -93,6 +93,19 @@ class Symbol:
 
     role: str = ""
     role_heading: str = ""
+    objc_declarations: list[Declaration] = field(default_factory=list)
+    memberwise_fields: tuple[str, ...] = ()
+
+    def for_platform(self, platform: PlatformName) -> Symbol:
+        if not self.objc_declarations:
+            return self
+        declaration = next(
+            (decl for decl in self.objc_declarations if platform.value in decl.platforms),
+            None,
+        )
+        if declaration is None:
+            declaration = next((decl for decl in self.objc_declarations if not decl.platforms), None)
+        return replace(self, objc_declaration=declaration)
 
     @property
     def is_objc(self) -> bool:
