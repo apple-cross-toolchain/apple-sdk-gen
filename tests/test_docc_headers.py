@@ -60,6 +60,29 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_separates_return_type_from_function_name(self):
+        # DocC's CFRetain declaration has no whitespace token before CFRetain.
+        retain_declaration = {
+            "languages": ["occ"],
+            "tokens": [
+                {"kind": "keyword", "text": "extern"},
+                {"kind": "text", "text": " "},
+                {"kind": "typeIdentifier", "text": "CFTypeRef"},
+                {"kind": "identifier", "text": "CFRetain"},
+                {"kind": "text", "text": "("},
+                {"kind": "typeIdentifier", "text": "CFTypeRef"},
+                {"kind": "text", "text": " "},
+                {"kind": "internalParam", "text": "cf"},
+                {"kind": "text", "text": ");"},
+            ],
+        }
+        docc = DocC({
+            "/documentation/corefoundation/cfretain": page("CFRetain", "func", retain_declaration),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+        self.assertIn("extern CFTypeRef CFRetain(CFTypeRef cf);", header)
+
     async def test_uses_platform_variant_before_unqualified_declaration(self):
         docc = DocC({
             "/documentation/foundation/handle": page(
