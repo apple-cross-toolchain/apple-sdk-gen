@@ -191,6 +191,7 @@ async def _run(args: argparse.Namespace, swift_work: Path | None) -> None:
                 include_swift=args.include_swift,
                 xcode_version=args.xcode_version,
                 xcode_build=args.xcode_build,
+                include_cocoa="Cocoa" not in (args.exclude_frameworks or ()),
             )
 
             tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)

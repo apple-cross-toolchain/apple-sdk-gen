@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import sys
 
+from .assembler.cocoa import COCOA_IMPORTS
 from .config import PLATFORM_CONFIGS
 from .generators.sdk_metadata import default_xcode_build, default_xcode_version
 
@@ -156,10 +157,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.platforms.extend(sim_keys)
 
     # Parse framework lists
-    if args.frameworks:
-        args.frameworks = {f.strip() for f in args.frameworks.split(",")}
     if args.exclude_frameworks:
         args.exclude_frameworks = {f.strip() for f in args.exclude_frameworks.split(",")}
+    if args.frameworks:
+        args.frameworks = {f.strip() for f in args.frameworks.split(",")}
+        if (
+            "macos" in platforms
+            and "Cocoa" in args.frameworks
+            and "Cocoa" not in (args.exclude_frameworks or ())
+        ):
+            args.frameworks.update(COCOA_IMPORTS)
 
     return args
 
