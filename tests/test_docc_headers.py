@@ -62,6 +62,33 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_enum_cases_use_their_own_names(self):
+        path = "/documentation/contacts/cnauthorizationstatus"
+        enum_name = "CNAuthorizationStatus"
+        cases = {"restricted": "CNAuthorizationStatusRestricted", "authorized": "CNAuthorizationStatusAuthorized"}
+        docc = DocC({
+            path: {
+                **page(enum_name, "enum", declaration(f"enum {enum_name} : NSInteger", "macOS")),
+                "topicSections": [{"identifiers": list(cases)}],
+                "references": {key: {"kind": "symbol", "role": "symbol", "url": f"{path}/{key}"}
+                               for key in cases},
+            },
+            **{
+                f"{path}/{key}": {"metadata": {
+                    "title": key, "role": "symbol", "symbolKind": "case",
+                    "externalID": f"c:@E@{enum_name}@{name}",
+                }}
+                for key, name in cases.items()
+            },
+        })
+        symbols = [await parse_symbol(docc, key, "Contacts") for key in docc.pages]
+        with tempfile.TemporaryDirectory() as directory:
+            sdk = assemble_sdk(Path(directory), "macos", "26.5", {"Contacts": symbols})
+            header = (sdk / "System/Library/Frameworks/Contacts.framework/Headers/Contacts.h").read_text()
+        for case_name in cases.values():
+            self.assertIn(f"    {case_name} =", header)
+        self.assertNotIn(f"    {enum_name} =", header)
+
     async def test_crawler_discovers_objc_only_exports(self):
         root = "/documentation/corefoundation"
         type_path = f"{root}/cftyperef"
