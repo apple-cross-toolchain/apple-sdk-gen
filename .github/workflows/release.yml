@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+
+concurrency: sdk-release
 
 permissions:
   contents: write
@@ -13,6 +14,7 @@ env:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
