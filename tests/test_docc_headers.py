@@ -60,6 +60,35 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_forward_declarations_use_selected_objc_symbols(self):
+        docc = DocC({
+            "/documentation/foundation/nsdictionary/iterator": page(
+                "NSDictionary.Iterator", "class",
+                {**declaration("final class Iterator"), "languages": ["swift"]},
+            ),
+            "/documentation/combine/publisher": page(
+                "Publisher", "protocol",
+                {**declaration("protocol Publisher"), "languages": ["swift"]},
+            ),
+            "/documentation/foundation/mobileonly": page(
+                "MobileOnly", "class", declaration("@interface MobileOnly", "iOS"),
+            ),
+            "/documentation/foundation/nsstring": page(
+                "NSString", "class", declaration("@interface NSString", "macOS"),
+            ),
+            "/documentation/foundation/nscopying": page(
+                "NSCopying", "protocol", declaration("@protocol NSCopying"),
+            ),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertIn("@class NSString;", header)
+        self.assertIn("@protocol NSCopying;", header)
+        self.assertNotIn("@class NSDictionary.Iterator;", header)
+        self.assertNotIn("@protocol Publisher;", header)
+        self.assertNotIn("@class MobileOnly;", header)
+
     async def test_separates_return_type_from_function_name(self):
         # DocC's CFRetain declaration has no whitespace token before CFRetain.
         retain_declaration = {
