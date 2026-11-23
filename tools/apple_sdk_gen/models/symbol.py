@@ -2,7 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .types import PlatformName, SymbolKind, TokenKind
+from .types import InterfaceLanguage, PlatformName, SymbolKind, TokenKind
+
+
+_DECLARATION_WORD_TOKENS = {
+    TokenKind.KEYWORD,
+    TokenKind.IDENTIFIER,
+    TokenKind.TYPE_IDENTIFIER,
+    TokenKind.GENERIC_PARAMETER,
+    TokenKind.INTERNAL_PARAM,
+    TokenKind.EXTERNAL_PARAM,
+}
+
+
+def _is_identifier_character(character: str) -> bool:
+    return character.isalnum() or character == "_"
 
 
 @dataclass
@@ -37,7 +51,21 @@ class Declaration:
         )
 
     def render(self) -> str:
-        return "".join(t.text for t in self.tokens)
+        if InterfaceLanguage.OBJC.value not in self.languages:
+            return "".join(token.text for token in self.tokens)
+
+        # DocC can omit whitespace between distinct C or Objective-C words.
+        parts: list[str] = []
+        previous_ends_word = False
+        for token in self.tokens:
+            if not token.text:
+                continue
+            is_word = token.kind in _DECLARATION_WORD_TOKENS
+            if previous_ends_word and is_word and _is_identifier_character(token.text[0]):
+                parts.append(" ")
+            parts.append(token.text)
+            previous_ends_word = is_word and _is_identifier_character(token.text[-1])
+        return "".join(parts)
 
 
 @dataclass
