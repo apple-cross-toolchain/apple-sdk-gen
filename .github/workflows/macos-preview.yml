@@ -1,0 +1,76 @@
+name: macOS SDK preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Source branch, tag, or commit (defaults to the workflow ref)
+        type: string
+      frameworks:
+        description: Comma-separated framework list (leave blank for all frameworks)
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SDK_VERSION: "27.0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Restore release DocC cache
+        uses: actions/cache/restore@v5
+        with:
+          path: cache
+          key: api-cache-${{ github.run_id }}
+          restore-keys: api-cache-
+
+      - name: Install dependencies
+        run: pip install -e tools/
+
+      - name: Build macOS SDK
+        env:
+          FRAMEWORKS: ${{ inputs.frameworks }}
+        run: |
+          selection=(--all-frameworks)
+          if [[ -n "$FRAMEWORKS" ]]; then
+            selection=(--frameworks "$FRAMEWORKS")
+          fi
+
+          python -m tools.apple_sdk_gen \
+            --platforms macos \
+            --sdk-version "$SDK_VERSION" \
+            "${selection[@]}" \
+            --include-libc \
+            --include-cxx \
+            --cache-dir cache \
+            --output output \
+            -v
+
+      - name: Bundle SDK
+        run: |
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2023-01-01 00:00Z' \
+            -cf - -C output Xcode.app | zstd -19 -T0 -o "stub-sdk-macos-$SDK_VERSION.tar.zst"
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: stub-sdk-macos-${{ env.SDK_VERSION }}-${{ github.run_attempt }}
+          path: stub-sdk-macos-${{ env.SDK_VERSION }}.tar.zst
+          if-no-files-found: error
+          compression-level: 0
