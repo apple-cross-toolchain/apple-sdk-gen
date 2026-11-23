@@ -92,9 +92,11 @@ First run can take up to several hours, but API responses are cached locally in
 Code built against an SDK generated with `--swift-version` must be compiled
 with that same Swift release.
 
-## Releases
+## CI and releases
 
-Every push to `main` builds all platforms and publishes
+Pushes to `main` and pull requests targeting it run the unit tests.
+
+Run **Release** manually from `main` to build all platforms and publish
 `stub-sdks-<sdk version>.tar.zst`, holding `Xcode.app`, as a GitHub release.
 
 ## Limitations
