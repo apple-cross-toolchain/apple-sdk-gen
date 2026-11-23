@@ -297,14 +297,9 @@ def generate_umbrella_header(
     # Group symbols by kind for proper ordering
     groups = _group_symbols(symbols)
 
-    # Forward declarations
-    forward_classes = set()
-    forward_protocols = set()
-    for sym in symbols:
-        if sym.kind == SymbolKind.CLASS:
-            forward_classes.add(sym.objc_name)
-        elif sym.kind == SymbolKind.PROTOCOL:
-            forward_protocols.add(sym.objc_name)
+    # Forward-declare the same Objective-C types that get definitions below.
+    forward_classes = {sym.objc_name for sym in groups.get("class", [])}
+    forward_protocols = {sym.objc_name for sym in groups.get("protocol", [])}
 
     if forward_classes:
         for cls in sorted(forward_classes):
