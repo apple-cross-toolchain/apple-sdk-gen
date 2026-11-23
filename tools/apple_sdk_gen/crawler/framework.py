@@ -2,11 +2,28 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import deepcopy
 
 from .client import APIClient
+from .symbol import _apply_variant_overrides
 from .technologies import FrameworkInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _topic_paths(data: dict) -> list[str]:
+    paths: list[str] = []
+    references = data.get("references", {})
+    for section in data.get("topicSections", []):
+        for identifier in section.get("identifiers", []):
+            ref = references.get(identifier, {})
+            url = ref.get("url", "")
+            if not url or url.startswith("http"):
+                continue
+            role = ref.get("role")
+            if role in ("collectionGroup", "collection") or (role == "symbol" and ref.get("kind") == "symbol"):
+                paths.append(url)
+    return paths
 
 
 async def crawl_framework_symbols(
@@ -26,7 +43,6 @@ async def crawl_framework_symbols(
         if data is None:
             return []
 
-        child_paths: list[str] = []
         kind = data.get("metadata", {}).get("symbolKind", "")
         role = data.get("metadata", {}).get("role", "")
 
@@ -34,27 +50,12 @@ async def crawl_framework_symbols(
         if role == "symbol" and kind != "module":
             symbol_paths_set.add(doc_path)
 
-        # Expand topicSections to find child symbols
-        for section in data.get("topicSections", []):
-            for identifier in section.get("identifiers", []):
-                ref = data.get("references", {}).get(identifier, {})
-                ref_kind = ref.get("kind", "")
-                ref_role = ref.get("role", "")
-                ref_url = ref.get("url", "")
-
-                if not ref_url:
-                    continue
-
-                # Skip external references
-                if ref_url.startswith("http"):
-                    continue
-
-                if ref_kind == "symbol" and ref_role == "symbol":
-                    child_paths.append(ref_url)
-                elif ref_role in ("collectionGroup", "collection"):
-                    child_paths.append(ref_url)
-
-        return child_paths
+        # Objective-C topic overrides can expose symbols absent from the default view.
+        paths = _topic_paths(data)
+        if framework.has_objc and data.get("variantOverrides"):
+            objc_data = _apply_variant_overrides(deepcopy(data), "occ")
+            paths.extend(_topic_paths(objc_data))
+        return list(dict.fromkeys(paths))
 
     # BFS through the framework's documentation tree
     while queue:
