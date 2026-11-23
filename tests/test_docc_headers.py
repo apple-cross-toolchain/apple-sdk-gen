@@ -6,7 +6,9 @@ import tempfile
 import unittest
 
 from tools.apple_sdk_gen.assembler.sdk_layout import assemble_sdk
+from tools.apple_sdk_gen.crawler.framework import crawl_framework_symbols
 from tools.apple_sdk_gen.crawler.symbol import parse_symbol
+from tools.apple_sdk_gen.crawler.technologies import FrameworkInfo
 
 
 CLANG = os.environ.get("CLANG") or shutil.which("clang")
@@ -60,6 +62,49 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_crawler_discovers_objc_only_exports(self):
+        root = "/documentation/corefoundation"
+        type_path = f"{root}/cftyperef"
+        names = {"cfgettypeid": "CFGetTypeID", "cfretain": "CFRetain", "cfrelease": "CFRelease"}
+        docc = DocC({
+            root: {
+                "topicSections": [{"identifiers": ["type"]}],
+                "references": {"type": {"kind": "symbol", "role": "symbol", "url": type_path}},
+            },
+            type_path: {
+                **page("CFTypeRef", "typealias", declaration("typedef const void *CFTypeRef;")),
+                "references": {
+                    name: {"kind": "symbol", "role": "symbol", "url": f"{root}/{name}"}
+                    for name in names
+                },
+                "topicSections": [{"identifiers": ["cfgettypeid"]}],
+                "variantOverrides": [{
+                    "traits": [{"interfaceLanguage": "occ"}],
+                    "patch": [{
+                        "op": "replace",
+                        "path": "/topicSections",
+                        "value": [{"identifiers": ["cfretain", "cfrelease"]}],
+                    }],
+                }],
+            },
+            **{
+                f"{root}/{path}": {"metadata": {
+                    "title": name, "role": "symbol", "symbolKind": "func", "externalID": f"c:@F@{name}",
+                }}
+                for path, name in names.items()
+            },
+        })
+        framework = FrameworkInfo("CoreFoundation", f"doc://test{root}", ["swift", "occ"], "")
+        paths = await crawl_framework_symbols(docc, framework)
+        symbols = [await parse_symbol(docc, path, framework.name) for path in paths]
+        with tempfile.TemporaryDirectory() as directory:
+            sdk = assemble_sdk(Path(directory), "macos", "26.0", {framework.name: symbols})
+            stub = sdk / "System/Library/Frameworks/CoreFoundation.framework/CoreFoundation.tbd"
+            exports = stub.read_text()
+
+        for name in names.values():
+            self.assertIn(f"_{name}", exports)
+
     async def test_imports_follow_objc_type_references(self):
         nsstring = {
             "languages": ["occ"],
