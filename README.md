@@ -96,6 +96,9 @@ with that same Swift release.
 
 Pushes to `main` and pull requests targeting it run the unit tests.
 
+Run **macOS SDK preview** manually to build a macOS archive as an Actions
+artifact. Select a source ref and a framework list if you want a focused build.
+
 Run **Release** manually from `main` to build all platforms and publish
 `stub-sdks-<sdk version>.tar.zst`, holding `Xcode.app`, as a GitHub release.
 
