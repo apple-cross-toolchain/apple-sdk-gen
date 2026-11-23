@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from unicodedata import normalize
 
 from ..config import (
     COMPANION_FRAMEWORKS,
@@ -201,17 +202,19 @@ def _assemble_framework(
 
     # Generate per-symbol stub headers for import compatibility
     # (e.g. #import <UIKit/UIView.h> → re-exports umbrella)
-    seen_names = {framework_name}
+    # Linux-generated SDKs must also extract on case-insensitive filesystems.
+    seen_names = {normalize("NFC", framework_name).casefold()}
     for sym in symbols:
         name = sym.objc_name or sym.title
-        if not name or name in seen_names:
-            continue
         if sym.parent_identifier:
             continue
         # Skip names that aren't valid header filenames
-        if not name.isidentifier() or len(name) > 200:
+        if not name or not name.isidentifier() or len(name) > 200:
             continue
-        seen_names.add(name)
+        filename_key = normalize("NFC", name).casefold()
+        if filename_key in seen_names:
+            continue
+        seen_names.add(filename_key)
         stub = (
             f"// Auto-generated stub \u2014 all declarations are in {framework_name}.h\n"
             f"#import <{framework_name}/{framework_name}.h>\n"
