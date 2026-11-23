@@ -4,9 +4,10 @@ import logging
 import re
 from collections import defaultdict
 
+from ..config import FRAMEWORK_NAME_MAPPINGS
 from ..models.availability import availability_macro, deprecated_macro
 from ..models.symbol import Symbol
-from ..models.types import SymbolKind
+from ..models.types import SymbolKind, TokenKind
 from ..supplements.enum_values import get_case_value, is_options_enum
 from ..supplements.inline_functions import INLINE_FUNCTIONS
 
@@ -289,8 +290,8 @@ def generate_umbrella_header(
 
     # Collect imports for cross-framework references
     imports = _collect_imports(symbols, framework_name)
-    for imp in sorted(imports):
-        lines.append(f"#import <{imp}/{imp}.h>")
+    for header in sorted(imports):
+        lines.append(f"#import <{header}>")
     if imports:
         lines.append("")
 
@@ -370,17 +371,21 @@ def generate_umbrella_header(
 def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
     imports: set[str] = set()
     for sym in symbols:
-        for rel in sym.relationships:
-            for ident in rel.identifiers:
-                if "com.externally.resolved.symbol" in ident:
-                    continue
-                if "/documentation/" in ident:
-                    parts = ident.split("/documentation/", 1)[1].split("/")
-                    if parts and parts[0].lower() != framework_name.lower():
-                        imports.add(parts[0])
-    # Always import Foundation for non-Foundation frameworks
-    if framework_name != "Foundation" and framework_name != "ObjectiveC":
-        imports.add("Foundation")
+        if sym.objc_declaration is None:
+            continue
+        for token in sym.objc_declaration.tokens:
+            if token.kind != TokenKind.TYPE_IDENTIFIER:
+                continue
+            # DocC indexes NSObject under ObjectiveC, but objc4 installs it here.
+            if token.precise_identifier in {"c:objc(cs)NSObject", "c:objc(pl)NSObject"}:
+                imports.add("objc/NSObject.h")
+                continue
+            identifier = token.identifier or ""
+            _, _, path = identifier.partition("/documentation/")
+            module = path.split("/", 1)[0]
+            framework = FRAMEWORK_NAME_MAPPINGS.get(module, module)
+            if framework and framework.casefold() != framework_name.casefold():
+                imports.add(f"{framework}/{framework}.h")
     return imports
 
 
@@ -441,25 +446,15 @@ def _render_interface_block(
     all_framework_symbols: list[Symbol],
     all_symbols: dict[str, Symbol] | None = None,
 ) -> str | None:
-    if not sym.is_objc:
+    if sym.objc_declaration is None:
         return None
 
-    lines: list[str] = []
+    heading = sym.objc_declaration.render().strip().removesuffix(";")
+    if not heading:
+        return None
     avail = availability_macro(sym)
     avail_str = f" {avail}" if avail else ""
-
-    if sym.kind == SymbolKind.PROTOCOL:
-        lines.append(f"@protocol {sym.objc_name}{avail_str}")
-    elif sym.kind == SymbolKind.CLASS:
-        superclass = _resolve_superclass(sym)
-        protocols = _resolve_protocols(sym)
-        proto_str = f" <{', '.join(protocols)}>" if protocols else ""
-        if superclass:
-            lines.append(f"@interface {sym.objc_name} : {superclass}{proto_str}{avail_str}")
-        else:
-            lines.append(f"@interface {sym.objc_name}{proto_str}{avail_str}")
-    else:
-        return None
+    lines = [f"{heading}{avail_str}"]
 
     # Find child members
     children = _find_children(sym, all_framework_symbols, all_symbols)
@@ -670,36 +665,6 @@ def _swift_field_to_c(swift_decl: str, field_name: str) -> str | None:
     swift_type = stripped[colon_idx + 1:].strip()
     c_type = _SWIFT_TO_C_TYPES.get(swift_type, swift_type)
     return f"{c_type} {field_name};"
-
-
-def _resolve_superclass(sym: Symbol) -> str | None:
-    for rel in sym.relationships:
-        if rel.kind == "inheritsFrom":
-            for ident in rel.identifiers:
-                # Extract class name from identifier
-                if "c:objc(cs)" in ident:
-                    return ident.split("c:objc(cs)")[-1]
-                # Try to extract from doc path
-                if "/documentation/" in ident:
-                    parts = ident.split("/")
-                    return parts[-1]
-    return None
-
-
-def _resolve_protocols(sym: Symbol) -> list[str]:
-    protocols = []
-    for rel in sym.relationships:
-        if rel.kind == "conformsTo":
-            for ident in rel.identifiers:
-                if "c:objc(pl)" in ident:
-                    protocols.append(ident.split("c:objc(pl)")[-1])
-                elif "/documentation/" in ident:
-                    parts = ident.split("/")
-                    name = parts[-1]
-                    # Only include if it looks like a protocol name
-                    if name and name[0].isupper():
-                        protocols.append(name)
-    return protocols
 
 
 def _normalize_path(identifier: str) -> str:

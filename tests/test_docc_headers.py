@@ -60,6 +60,53 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_imports_follow_objc_type_references(self):
+        nsstring = {
+            "languages": ["occ"],
+            "tokens": [
+                {"kind": "text", "text": "@interface NSString : "},
+                {
+                    "kind": "typeIdentifier",
+                    "text": "NSObject",
+                    "identifier": "doc://com.apple.documentation/documentation/ObjectiveC/NSObject-swift.class",
+                    "preciseIdentifier": "c:objc(cs)NSObject",
+                },
+            ],
+        }
+        c_type = {
+            "languages": ["occ"],
+            "tokens": [
+                {"kind": "text", "text": "typedef "},
+                {
+                    "kind": "typeIdentifier",
+                    "text": "CGPoint",
+                    "identifier": "doc://com.apple.coregraphics/documentation/CoreGraphics/CGPoint",
+                },
+                {"kind": "text", "text": " Position;"},
+            ],
+        }
+        docc = DocC({
+            "/documentation/foundation/nsstring": {
+                **page("NSString", "class", nsstring),
+                "relationshipsSections": [
+                    {"type": "inheritsFrom", "identifiers": [nsstring["tokens"][1]["identifier"]]},
+                    {"type": "conformsTo", "identifiers": [
+                        "doc://com.apple.documentation/documentation/CloudKit/CKRecordValue-c.protocol",
+                        "doc://com.apple.documentation/documentation/Swift/Sendable",
+                    ]},
+                ],
+            },
+            "/documentation/foundation/position": page("Position", "typealias", c_type),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertEqual(
+            [line for line in header.splitlines() if line.startswith("#import <")],
+            ["#import <CoreGraphics/CoreGraphics.h>", "#import <objc/NSObject.h>"],
+        )
+        self.assertIn("@interface NSString : NSObject\n", header)
+
     async def test_forward_declarations_use_selected_objc_symbols(self):
         docc = DocC({
             "/documentation/foundation/nsdictionary/iterator": page(
