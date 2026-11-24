@@ -26,6 +26,11 @@ The source-backed export selection uses:
   compiler ABI from the published objc4 declarations and
   [Clang's ARC specification](https://github.com/llvm/llvm-project/blob/85ac560262434c9ccfc0c183ec22d4138ed647fb/clang/docs/AutomaticReferenceCounting.rst)
   and code generation. Retain the matching deployed exports.
+  Clang emits a reference to `__objc_empty_cache` for Objective-C class
+  definitions. Pinned
+  [objc4 source](https://github.com/apple-oss-distributions/objc4/blob/ebfe77e64331034c867285a95d3ac205203291d5/runtime/objc-cache.mm#L215-L231)
+  defines it as global data and both deployed runtime slices export it.
+  An AppKit delegate class linked and ran on each target through this export.
 - [LLVM 23.1.2 Darwin libc++ ABI lists](https://github.com/llvm/llvm-project/tree/85ac560262434c9ccfc0c183ec22d4138ed647fb/libcxx/lib/abi)
   and [libc++abi export lists](https://github.com/llvm/llvm-project/tree/85ac560262434c9ccfc0c183ec22d4138ed647fb/libcxxabi/lib).
   Retain symbols present in the selected ABI and the corresponding

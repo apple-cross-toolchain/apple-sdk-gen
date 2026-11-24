@@ -9273,6 +9273,7 @@
                 "NSObject.isa"
               ],
               "symbols": [
+                "__objc_empty_cache",
                 "__objc_flush_caches",
                 "__objc_msgForward",
                 "__objc_realizeClassFromSwift",
@@ -9444,6 +9445,7 @@
                 "NSObject.isa"
               ],
               "symbols": [
+                "__objc_empty_cache",
                 "__objc_flush_caches",
                 "__objc_msgForward",
                 "__objc_msgForward_stret",
