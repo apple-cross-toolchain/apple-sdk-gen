@@ -62,6 +62,43 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_appkit_event_and_activation_values(self):
+        enums = {
+            "NSEventType": {"NSEventTypeApplicationDefined": 15, "NSEventTypeLeftMouseDown": 1},
+            "NSEventSubtype": {"NSEventSubtypeApplicationActivated": 1},
+            "NSApplicationActivationPolicy": {
+                "NSApplicationActivationPolicyAccessory": 1,
+                "NSApplicationActivationPolicyProhibited": 2,
+                "NSApplicationActivationPolicyRegular": 0,
+            },
+        }
+        pages = {}
+        for name, cases in enums.items():
+            path = f"/documentation/appkit/{name.lower()}"
+            pages[path] = {
+                **page(name, "enum", declaration(f"enum {name} : NSInteger", "macOS")),
+                "topicSections": [{"identifiers": list(cases)}],
+                "references": {
+                    case: {"kind": "symbol", "role": "symbol", "url": f"{path}/{case.lower()}"}
+                    for case in cases
+                },
+            }
+            for case in cases:
+                pages[f"{path}/{case.lower()}"] = {"metadata": {
+                    "title": case, "role": "symbol", "symbolKind": "case",
+                    "externalID": f"c:@E@{name}@{case}",
+                }}
+        docc = DocC(pages)
+        symbols = [await parse_symbol(docc, path, "AppKit") for path in pages]
+        with tempfile.TemporaryDirectory() as directory:
+            sdk = assemble_sdk(Path(directory), "macos", "26.5", {"AppKit": symbols})
+            header = (sdk / "System/Library/Frameworks/AppKit.framework/Headers/AppKit.h").read_text()
+        self.assertIn("NSEventTypeApplicationDefined = 15,", header)
+        self.assertIn("NSEventSubtypeApplicationActivated = 1,", header)
+        self.assertIn("NSApplicationActivationPolicyRegular = 0,", header)
+        self.assertIn("NSApplicationActivationPolicyAccessory = 1,", header)
+        self.assertIn("NSApplicationActivationPolicyProhibited = 2,", header)
+
     async def test_enum_cases_use_their_own_names(self):
         path = "/documentation/contacts/cnauthorizationstatus"
         enum_name = "CNAuthorizationStatus"

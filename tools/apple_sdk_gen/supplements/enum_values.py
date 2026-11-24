@@ -12,6 +12,15 @@ from __future__ import annotations
 
 # case_name -> numeric value (as a string for direct emission)
 KNOWN_ENUM_VALUES: dict[str, str] = {
+    # AppKit event values corroborated by the GNUstep compatibility headers.
+    # https://github.com/gnustep/libs-gui/blob/af9ee9812aaef80a00645b3dcea29ab4d0eef8d8/Headers/AppKit/NSEvent.h
+    # https://github.com/gnustep/libs-gui/blob/af9ee9812aaef80a00645b3dcea29ab4d0eef8d8/Headers/AppKit/NSRunningApplication.h
+    "NSEventTypeApplicationDefined": "15",
+    "NSEventSubtypeApplicationActivated": "1",
+    "NSApplicationActivationPolicyRegular": "0",
+    "NSApplicationActivationPolicyAccessory": "1",
+    "NSApplicationActivationPolicyProhibited": "2",
+
     # ── Foundation: NSComparisonResult ────────────────────────────────
     "NSOrderedAscending": "-1",
     "NSOrderedSame": "0",
