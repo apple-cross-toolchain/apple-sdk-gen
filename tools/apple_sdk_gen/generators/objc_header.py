@@ -13,7 +13,14 @@ from ..supplements.inline_functions import INLINE_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 
-_OS_OBJECT_POINTER = re.compile(r"NSObject\s*<OS_([A-Za-z_]\w*)>\s*\*")
+_OS_OBJECT_POINTER = re.compile(r"NSObject\s*<OS_((?:nw|dispatch|sec)_\w+)>\s*\*")
+
+
+def _c_object_tag(name: str) -> str:
+    # Dispatch's DISPATCH_DECL uses a suffix. Network and Security use the
+    # object name as the tag, as in the OSS SEC_OBJECT_DECL C fallback.
+    return f"{name}_s" if name.startswith("dispatch_") else name
+
 
 # DocC's Kernel and DriverKit topics also document shared C typedefs.
 _C_TYPE_HEADERS = {
@@ -335,15 +342,15 @@ def generate_umbrella_header(
     declarations = "\n".join(sym.objc_declaration.render() for sym in symbols if sym.objc_declaration)
     os_object_names = sorted(set(_OS_OBJECT_POINTER.findall(declarations)))
     if os_object_names:
-        # Match libdispatch's OS_OBJECT_DECL C and Objective-C object types.
+        # Keep the Objective-C protocol or use its C opaque record tag.
         lines.extend((
             "#include <os/object.h>",
             "#if OS_OBJECT_USE_OBJC",
-            "#define _APPLE_SDK_GEN_OS_OBJECT_PTR(name) NSObject<OS_ ## name> *",
+            "#define _APPLE_SDK_GEN_OS_OBJECT_PTR(name, tag) NSObject<OS_ ## name> *",
             "#else",
-            "#define _APPLE_SDK_GEN_OS_OBJECT_PTR(name) struct name ## _s *",
+            "#define _APPLE_SDK_GEN_OS_OBJECT_PTR(name, tag) struct tag *",
         ))
-        lines.extend(f"struct {name}_s;" for name in os_object_names)
+        lines.extend(f"struct {_c_object_tag(name)};" for name in os_object_names)
         lines.extend(("#endif", ""))
     forward_structs = sorted(set(re.findall(r"\bstruct\s+([A-Za-z_]\w*)\b", declarations)))
     if forward_structs:
@@ -532,7 +539,10 @@ def _render_symbol_declaration(sym: Symbol) -> str | None:
     if not decl_text:
         return None
 
-    decl_text = _OS_OBJECT_POINTER.sub(r"_APPLE_SDK_GEN_OS_OBJECT_PTR(\1) ", decl_text)
+    decl_text = _OS_OBJECT_POINTER.sub(
+        lambda match: f"_APPLE_SDK_GEN_OS_OBJECT_PTR({match[1]}, {_c_object_tag(match[1])}) ",
+        decl_text,
+    )
     if sym.kind == SymbolKind.TYPEALIAS:
         decl_text = re.sub(
             r"^(typedef\s+.+?)\s*((?:\[[^\[\]]*\]\s*)+)([A-Za-z_]\w*)(;?)$",
