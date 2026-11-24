@@ -90,6 +90,47 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(f"    {enum_name} =", header)
 
     @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_foundation_constant_values(self):
+        pages = {}
+        for name, kind, declaration_text, case, case_usr in (
+            ("NSStringEncoding", "typealias", "typedef NSUInteger NSStringEncoding;",
+             "NSUTF8StringEncoding", "c:@Ea@NSASCIIStringEncoding@NSUTF8StringEncoding"),
+            ("NSSearchPathDirectory", "enum", "enum NSSearchPathDirectory : NSUInteger",
+             "NSDocumentDirectory", "c:@E@NSSearchPathDirectory@NSDocumentDirectory"),
+            ("NSSearchPathDomainMask", "enum", "enum NSSearchPathDomainMask : NSUInteger",
+             "NSUserDomainMask", "c:@E@NSSearchPathDomainMask@NSUserDomainMask"),
+        ):
+            path = f"/documentation/foundation/{name.lower()}"
+            child = f"{path}/{case.lower()}"
+            pages[path] = {
+                **page(name, kind, declaration(declaration_text, "macOS")),
+                "topicSections": [{"identifiers": [case]}],
+                "references": {case: {"kind": "symbol", "role": "symbol", "url": child}},
+            }
+            pages[child] = {"metadata": {
+                "title": case, "role": "symbol", "symbolKind": "case", "externalID": case_usr,
+            }}
+
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await DocC(pages).symbols())
+            for arch in ("arm64", "x86_64"):
+                with self.subTest(arch=arch):
+                    result = subprocess.run(
+                        [CLANG, "-target", f"{arch}-apple-macos11", "-ffreestanding",
+                         "-fsyntax-only", "-Werror", "-isysroot", str(header.parents[5]),
+                         "-include", str(header), "-x", "objective-c", "-"],
+                        input=(
+                            '_Static_assert(NSUTF8StringEncoding == 4, "UTF-8");\n'
+                            '_Static_assert(NSDocumentDirectory == 9, "Documents");\n'
+                            '_Static_assert(NSUserDomainMask == 1, "user domain");\n'
+                        ),
+                        text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+            tbd = header.parents[1] / "Foundation.tbd"
+            self.assertNotIn("_NSUTF8StringEncoding", tbd.read_text())
+
+    @unittest.skipUnless(CLANG, "requires Clang")
     async def test_cf_linkage_macros_match_the_source_language(self):
         docc = DocC(address_pages("init(code:number:)"))
         source = (
