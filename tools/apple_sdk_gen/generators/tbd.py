@@ -89,6 +89,8 @@ def tbd_document(
     reexports: list[str] = (),
     flags: list[str] = (),
     swift_abi_version: int = 0,
+    reexported_libraries: list[tuple[list[str], list[str]]] = (),
+    reexported_symbols: list[tuple[list[str], dict[str, list[str]]]] = (),
 ) -> str:
     lines = ["--- !tapi-tbd", "tbd-version: 4", "targets: " + _format_flow_list(targets)]
     if flags:
@@ -101,16 +103,21 @@ def tbd_document(
     if swift_abi_version:
         lines.append(f"swift-abi-version: {swift_abi_version}")
     if reexports:
+        reexported_libraries = [(targets, list(reexports)), *reexported_libraries]
+    if reexported_libraries:
         lines.append("reexported-libraries:")
-        lines.append("  - targets: " + _format_flow_list(targets))
-        lines.append("    libraries: " + _quoted_flow_list(list(reexports)))
-    exports = [(entry_targets, groups) for entry_targets, groups in exports if any(groups.get(key) for key in EXPORT_KEYS)]
-    if exports:
-        lines.append("exports:")
-    for entry_targets, groups in exports:
-        lines.append("  - targets: " + _format_flow_list(entry_targets))
-        for key in EXPORT_KEYS:
-            if groups.get(key):
-                lines.append(f"    {key}: " + _quoted_flow_list(sorted(groups[key])))
+        for entry_targets, libraries in reexported_libraries:
+            lines.append("  - targets: " + _format_flow_list(entry_targets))
+            lines.append("    libraries: " + _quoted_flow_list(libraries))
+    for section, entries in (("exports", exports), ("reexports", reexported_symbols)):
+        entries = [(entry_targets, groups) for entry_targets, groups in entries
+                   if any(groups.get(key) for key in EXPORT_KEYS)]
+        if entries:
+            lines.append(section + ":")
+        for entry_targets, groups in entries:
+            lines.append("  - targets: " + _format_flow_list(entry_targets))
+            for key in EXPORT_KEYS:
+                if groups.get(key):
+                    lines.append(f"    {key}: " + _quoted_flow_list(sorted(groups[key])))
     lines.append("...")
     return "\n".join(lines) + "\n"

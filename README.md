@@ -15,8 +15,8 @@ and their symbols, then assembles stub SDKs containing:
   standard library's `.swiftinterface` modules, `libswift*.tbd` stubs with the
   exported symbols of its dylibs, the shims, the clang resource directory and
   the compatibility archives (`--swift-version`)
-- **libSystem, libobjc and libc++ stubs** carrying the symbol lists of a real
-  SDK (`tools/extract-darwin-libs.py` refreshes them from an installed Xcode)
+- **libSystem, libobjc and libc++ stubs** from a Darwin export inventory
+  selected for the requested SDK version and platform
 - **C stdlib / POSIX headers** from Apple open-source distributions
 - **C++ standard library headers** from upstream LLVM
 - **SDKSettings.json**, **Info.plist** and **version.plist** matching Xcode's metadata format
@@ -70,6 +70,7 @@ First run can take up to several hours, but API responses are cached locally in
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--sdk-version` | *(required)* | SDK version to generate (e.g. `27.0`) |
+| `--darwin-library-metadata` | bundled 27.0 inventory | JSON export inventory for the requested SDK version and platforms |
 | `--platforms` | `ios,macos` | Comma-separated: `ios`, `macos`, `tvos`, `watchos`, `visionos` |
 | `--include-simulators` | off | Also generate simulator SDKs for each device platform |
 | `--all-frameworks` | off | Generate all available frameworks |
@@ -91,6 +92,29 @@ First run can take up to several hours, but API responses are cached locally in
 
 Code built against an SDK generated with `--swift-version` must be compiled
 with that same Swift release.
+
+### Darwin export inventories
+
+The bundled inventory is used for SDK 27.0. For another version, pass
+`--darwin-library-metadata` with an inventory for that exact SDK version.
+Its top-level fields are `sdk_version` and `platforms`. Each platform maps
+the stub basenames `libSystem.B`, `libobjc.A`, `libc++.1`, and `libc++abi`
+to arrays of TBD v4 documents. Export and reexport target groups are
+preserved. Missing versions or requested platforms are reported before
+the documentation crawl starts.
+
+To compare locally with an installed SDK, the extractor reads its version
+from `SDKSettings.json` and keeps its target groups:
+
+```sh
+python3 tools/extract-darwin-libs.py "$REFERENCE_SDK" \
+  --platform macos --output "$LOCAL_METADATA"
+python3 -m tools.apple_sdk_gen --platforms macos --sdk-version 26.5 \
+  --darwin-library-metadata "$LOCAL_METADATA" --frameworks CoreFoundation
+```
+
+The extractor is for local comparisons. Supply an inventory with
+appropriate provenance when producing distributable SDKs.
 
 ## CI and releases
 
