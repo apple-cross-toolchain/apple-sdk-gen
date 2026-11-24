@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 
 # DocC's Kernel and DriverKit topics also document shared C typedefs.
 _C_TYPE_HEADERS = {
+    "c:@T@au_asid_t": "bsm/audit.h",
     "c:@T@boolean_t": "mach/boolean.h",
     "c:@T@mach_port_t": "mach/port.h",
     "c:@T@size_t": "stddef.h",
     "c:@T@va_list": "stdarg.h",
     **{f"c:@T@{name}": "stdint.h" for name in
-       ("int32_t", "int64_t", "uint8_t", "uint32_t")},
+       ("int8_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t")},
     **{f"c:@T@{name}": "sys/types.h" for name in
        ("gid_t", "mode_t", "off_t", "pid_t", "uid_t")},
     **{f"c:@T@{name}": "CoreFoundation/CFBase.h" for name in

@@ -225,7 +225,19 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
                 {"kind": "typeIdentifier", "text": "pid_t",
                  "identifier": "doc://com.apple.documentation/documentation/DriverKit/pid_t",
                  "preciseIdentifier": "c:@T@pid_t"},
-                {"kind": "text", "text": " process);"},
+                {"kind": "text", "text": " process, "},
+                {"kind": "typeIdentifier", "text": "int8_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/int8_t",
+                 "preciseIdentifier": "c:@T@int8_t"},
+                {"kind": "text", "text": " byte, "},
+                {"kind": "typeIdentifier", "text": "uint16_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/uint16_t",
+                 "preciseIdentifier": "c:@T@uint16_t"},
+                {"kind": "text", "text": " value, "},
+                {"kind": "typeIdentifier", "text": "au_asid_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/au_asid_t",
+                 "preciseIdentifier": "c:@T@au_asid_t"},
+                {"kind": "text", "text": " audit_session);"},
             ],
         }
         docc = DocC({"/documentation/foundation/usetypes": page("UseTypes", "func", parameters)})
@@ -234,8 +246,9 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [line for line in header.splitlines() if line.startswith("#import <")],
-            ["#import <CoreFoundation/CoreFoundation.h>", "#import <dispatch/dispatch.h>",
-             "#import <mach/port.h>", "#import <stddef.h>", "#import <sys/types.h>"],
+            ["#import <CoreFoundation/CoreFoundation.h>", "#import <bsm/audit.h>",
+             "#import <dispatch/dispatch.h>", "#import <mach/port.h>",
+             "#import <stddef.h>", "#import <stdint.h>", "#import <sys/types.h>"],
         )
 
     async def test_c_function_availability_precedes_the_semicolon(self):
