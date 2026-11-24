@@ -242,10 +242,18 @@ typedef unsigned int NSUInteger;
 
 /* --- Extern C --- */
 #ifndef CF_EXTERN_C_BEGIN
+#ifdef __cplusplus
 #define CF_EXTERN_C_BEGIN extern "C" {
+#else
+#define CF_EXTERN_C_BEGIN
+#endif
 #endif
 #ifndef CF_EXTERN_C_END
+#ifdef __cplusplus
 #define CF_EXTERN_C_END }
+#else
+#define CF_EXTERN_C_END
+#endif
 #endif
 
 /* --- Header audit --- */
