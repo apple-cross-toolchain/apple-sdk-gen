@@ -388,6 +388,10 @@ def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
             if token.precise_identifier in {"c:objc(cs)NSObject", "c:objc(pl)NSObject"}:
                 imports.add("objc/NSObject.h")
                 continue
+            # DocC's kernel topic also describes public userspace Mach types.
+            if token.precise_identifier == "c:@T@mach_port_t":
+                imports.add("mach/port.h")
+                continue
             identifier = token.identifier or ""
             _, _, path = identifier.partition("/documentation/")
             module = path.split("/", 1)[0]

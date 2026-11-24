@@ -203,7 +203,7 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("@class NSDictionary.Iterator;", header)
         self.assertNotIn("@protocol Publisher;", header)
 
-    async def test_imports_use_the_installed_corefoundation_and_dispatch_headers(self):
+    async def test_imports_use_installed_c_headers(self):
         parameters = {
             "languages": ["occ"],
             "tokens": [
@@ -213,7 +213,11 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
                 {"kind": "text", "text": " string, "},
                 {"kind": "typeIdentifier", "text": "dispatch_queue_t",
                  "identifier": "doc://com.apple.dispatch/documentation/Dispatch/dispatch_queue_t"},
-                {"kind": "text", "text": " queue);"},
+                {"kind": "text", "text": " queue, "},
+                {"kind": "typeIdentifier", "text": "mach_port_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/mach_port_t",
+                 "preciseIdentifier": "c:@T@mach_port_t"},
+                {"kind": "text", "text": " port);"},
             ],
         }
         docc = DocC({"/documentation/foundation/usetypes": page("UseTypes", "func", parameters)})
@@ -222,7 +226,8 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [line for line in header.splitlines() if line.startswith("#import <")],
-            ["#import <CoreFoundation/CoreFoundation.h>", "#import <dispatch/dispatch.h>"],
+            ["#import <CoreFoundation/CoreFoundation.h>", "#import <dispatch/dispatch.h>",
+             "#import <mach/port.h>"],
         )
 
     async def test_c_function_availability_precedes_the_semicolon(self):
