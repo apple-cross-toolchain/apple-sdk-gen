@@ -8,6 +8,28 @@ from tools.apple_sdk_gen.models.types import SymbolKind
 
 
 class FrameworkLayoutTest(unittest.TestCase):
+    def test_macos_foundation_and_appkit_use_versioned_install_names(self):
+        with TemporaryDirectory() as directory:
+            for version in ("15.2", "26.5"):
+                with self.subTest(version=version):
+                    sdk = assemble_sdk(Path(directory), "macos", version, {"Foundation": [], "AppKit": []})
+                    frameworks = sdk / "System/Library/Frameworks"
+                    for name in ("Foundation", "AppKit"):
+                        framework = frameworks / f"{name}.framework"
+                        tbd = framework / f"{name}.tbd"
+                        canonical = f"/System/Library/Frameworks/{name}.framework/Versions/C/{name}"
+                        self.assertIn(f"install-name:    '{canonical}'", tbd.read_text())
+                        self.assertEqual((framework / f"Versions/C/{name}.tbd").resolve(), tbd.resolve())
+                    appkit = (frameworks / "AppKit.framework/AppKit.tbd").read_text()
+                    self.assertIn("'/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation'", appkit)
+
+            ios = assemble_sdk(Path(directory), "ios", "26.5", {"Foundation": [], "UIKit": []})
+            frameworks = ios / "System/Library/Frameworks"
+            self.assertIn("'/System/Library/Frameworks/Foundation.framework/Foundation'",
+                          (frameworks / "UIKit.framework/UIKit.tbd").read_text())
+            self.assertIn("install-name:    '/System/Library/Frameworks/Foundation.framework/Foundation'",
+                          (frameworks / "Foundation.framework/Foundation.tbd").read_text())
+
     def test_umbrella_and_forwarding_headers_have_unique_casefolded_names(self):
         names = ["foundation", "NSString", "nsstring"]
         symbols = [
