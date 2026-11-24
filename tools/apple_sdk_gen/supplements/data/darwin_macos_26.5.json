@@ -597,6 +597,7 @@
                 "_dlopen",
                 "_dlopen_preflight",
                 "_dlsym",
+                "_environ",
                 "_macho_arch_name_for_cpu_type",
                 "_macho_arch_name_for_mach_header",
                 "_macho_best_slice",

@@ -83,3 +83,26 @@ class DarwinLibrariesTest(unittest.TestCase):
                     pipe_targets.update(group["targets"])
         self.assertEqual(pipe_targets, {"arm64-macos", "x86_64-macos"})
         self.assertTrue({"_pipe2", "_dup3"}.isdisjoint(symbols))
+
+    def test_macos_26_5_exports_environ_through_libdyld(self):
+        metadata = Path(__file__).resolve().parents[1] / "tools/apple_sdk_gen/supplements/data/darwin_macos_26.5.json"
+        libraries = select_darwin_libraries("26.5", ["macos"], metadata)["macos"]
+        documents = list(yaml.safe_load_all(libraries["libSystem.B"].replace("--- !tapi-tbd", "---")))
+        libdyld_name = "/usr/lib/system/libdyld.dylib"
+        umbrella = next(document for document in documents if document["install-name"] == "/usr/lib/libSystem.B.dylib")
+        libdyld = next(document for document in documents if document["install-name"] == libdyld_name)
+        reexport_targets = {
+            target
+            for group in umbrella["reexported-libraries"]
+            if libdyld_name in group["libraries"]
+            for target in group["targets"]
+        }
+        environ_targets = {
+            target
+            for group in libdyld["exports"]
+            if "_environ" in group.get("symbols", [])
+            for target in group["targets"]
+        }
+        expected = {"arm64-macos", "x86_64-macos"}
+        self.assertEqual(reexport_targets, expected)
+        self.assertEqual(environ_targets, expected)

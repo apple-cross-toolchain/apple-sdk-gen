@@ -32,12 +32,18 @@ The source-backed export selection uses:
   deployed export table. Preserve verified symbol reexports and weak
   exports.
 
+GNU Make uses the POSIX process environment directly. Apple's pinned
+[dyld implementation](https://github.com/apple-oss-distributions/dyld/blob/fd8d0c4d52320ebf64db34f3cb280310d905c5ae/libdyld/libdyldGlue.cpp#L1206-L1212)
+defines the `environ` data object. Both deployed slices export it from
+libdyld. A C client linked through libSystem and read the same environment
+as `_NSGetEnviron()` at deployment minima 11.0 and 26.5 on both CPUs.
+
 The arm64 inventory uses provider evidence from the arm64e runtime, and
 the x86_64 inventory uses the Rosetta runtime. Xcode build 25F70 was
 used for comparison only. Its export inventory and raw runtime
 captures are outside this data file.
 
-The preview contains 3,161 libSystem names on arm64 and 3,187 on
+The preview contains 3,162 libSystem names on arm64 and 3,188 on
 x86_64. These are raw unique name counts across the retained library
 documents. Both architectures ran C, Objective-C ARC, and C++ samples.
 `pipe` links and runs. `pipe2` and `dup3` are undefined. The reference
