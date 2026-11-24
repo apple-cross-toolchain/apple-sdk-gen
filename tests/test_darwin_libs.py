@@ -106,3 +106,20 @@ class DarwinLibrariesTest(unittest.TestCase):
         expected = {"arm64-macos", "x86_64-macos"}
         self.assertEqual(reexport_targets, expected)
         self.assertEqual(environ_targets, expected)
+
+    def test_macos_26_5_provides_out_of_line_ctype(self):
+        metadata = Path(__file__).resolve().parents[1] / "tools/apple_sdk_gen/supplements/data/darwin_macos_26.5.json"
+        libraries = select_darwin_libraries("26.5", ["macos"], metadata)["macos"]
+        documents = yaml.safe_load_all(libraries["libSystem.B"].replace("--- !tapi-tbd", "---"))
+        libc = next(document for document in documents if document["install-name"] == "/usr/lib/system/libsystem_c.dylib")
+        required = {"_isspace", "_isalpha", "_isdigit", "_isalnum", "_tolower", "_isupper", "_toupper", "_islower"}
+        for target in ("arm64-macos", "x86_64-macos"):
+            with self.subTest(target=target):
+                symbols = {
+                    name
+                    for group in libc["exports"]
+                    if target in group["targets"]
+                    for name in group.get("symbols", [])
+                }
+                self.assertLessEqual(required, symbols)
+                self.assertTrue({"__tolower", "__toupper"}.isdisjoint(symbols))

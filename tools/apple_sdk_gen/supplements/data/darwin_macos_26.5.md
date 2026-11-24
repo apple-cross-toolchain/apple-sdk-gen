@@ -38,12 +38,22 @@ defines the `environ` data object. Both deployed slices export it from
 libdyld. A C client linked through libSystem and read the same environment
 as `_NSGetEnviron()` at deployment minima 11.0 and 26.5 on both CPUs.
 
+Apple Libc builds out-of-line character classification and conversion
+functions through [isctype.c](https://github.com/apple-oss-distributions/Libc/blob/4e34d0559e3a1b081afeb8604d9e204a1f31321d/locale/isctype.c).
+Run clang-installapi over the installed `_ctype.h` with
+`-D_DONT_USE_CTYPE_INLINE_` to obtain the client declarations for both
+targets. The 23 names exported by each deployed libsystem_c slice are
+also in Xcode 26.5. Two extra header declarations, `_tolower` and
+`_toupper`, have macro implementations in the ordinary header mode
+and have no matching runtime export. A client forced to use real
+external references ran at deployment minima 11.0 and 26.5 on both CPUs.
+
 The arm64 inventory uses provider evidence from the arm64e runtime, and
 the x86_64 inventory uses the Rosetta runtime. Xcode build 25F70 was
 used for comparison only. Its export inventory and raw runtime
 captures are outside this data file.
 
-The preview contains 3,162 libSystem names on arm64 and 3,188 on
+The preview contains 3,185 libSystem names on arm64 and 3,211 on
 x86_64. These are raw unique name counts across the retained library
 documents. Both architectures ran C, Objective-C ARC, and C++ samples.
 `pipe` links and runs. `pipe2` and `dup3` are undefined. The reference
