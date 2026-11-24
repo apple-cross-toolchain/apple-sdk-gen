@@ -43,6 +43,12 @@ output/Xcode.app/Contents/Developer/Platforms/
 Without `--swift-stdlib-path`, no file in the output is copied from an Xcode
 SDK.
 
+To refresh the bundled Darwin library metadata, run
+`python3 tools/extract-darwin-libs.py /path/to/Xcode.app/Contents/Developer`
+with an Xcode installation containing the SDK versions and platforms you
+intend to ship. The extractor preserves the target tags on exports and
+reexports. This refresh runs independently of the documentation crawl.
+
 ## Quick start
 
 ```bash
