@@ -22,7 +22,7 @@ from .crawler.technologies import fetch_technologies, filter_frameworks
 from .models.availability import is_available
 from .models.symbol import Symbol
 from .supplements.commoncrypto import install_commoncrypto_headers
-from .supplements.darwin_libs import install_darwin_lib_stubs
+from .supplements.darwin_libs import install_darwin_lib_stubs, select_darwin_libraries
 from .supplements.swift_frameworks import install_framework_swiftmodules
 from .supplements.libc import install_libc_headers
 from .supplements.libcxx import install_libcxx_headers
@@ -42,18 +42,26 @@ logger = logging.getLogger(__name__)
 
 
 async def run(args: argparse.Namespace) -> None:
+    try:
+        darwin_libraries = select_darwin_libraries(
+            args.sdk_version, args.platforms, args.darwin_library_metadata,
+        )
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"Darwin library metadata: {exc}") from None
     swift_work = None
     if args.swift_version:
         Path(args.cache_dir).mkdir(parents=True, exist_ok=True)
         swift_work = tempfile.TemporaryDirectory(prefix="swift-org-", dir=args.cache_dir)
     try:
-        await _run(args, Path(swift_work.name) if swift_work else None)
+        await _run(args, Path(swift_work.name) if swift_work else None, darwin_libraries)
     finally:
         if swift_work:
             swift_work.cleanup()
 
 
-async def _run(args: argparse.Namespace, swift_work: Path | None) -> None:
+async def _run(
+    args: argparse.Namespace, swift_work: Path | None, darwin_libraries: dict[str, dict[str, str]],
+) -> None:
     # Configure logging
     level = logging.WARNING
     if args.verbose >= 1:
@@ -196,7 +204,7 @@ async def _run(args: argparse.Namespace, swift_work: Path | None) -> None:
             tbd_targets = tbd_targets_for_platform(platform_key, args.sdk_version)
 
             print("Installing Darwin library stubs...", file=sys.stderr)
-            install_darwin_lib_stubs(sdk_root=sdk_path, tbd_targets=tbd_targets)
+            install_darwin_lib_stubs(sdk_path, darwin_libraries[platform_key])
 
             # Always generate system library TBD stubs (libz, libsqlite3, etc.)
             print("Installing system library stubs...", file=sys.stderr)

@@ -1,79 +1,56 @@
 #!/usr/bin/env python3
+"""Extract versioned Darwin linker metadata for local comparisons."""
+
+import argparse
 import json
-import os
 import re
-import subprocess
-import sys
+from pathlib import Path
 
 import yaml
 
-PLATFORMS = [
-    "MacOSX",
-    "iPhoneOS",
-    "iPhoneSimulator",
-    "AppleTVOS",
-    "AppleTVSimulator",
-    "WatchOS",
-    "WatchSimulator",
-    "XROS",
-    "XRSimulator",
-]
-FILES = ["libSystem.B.tbd", "libobjc.A.tbd", "libc++.1.tbd", "libc++abi.tbd"]
-EXPORT_KEYS = ["symbols", "objc-classes", "objc-eh-types", "objc-ivars", "weak-symbols", "thread-local-symbols"]
-OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apple_sdk_gen", "supplements", "data", "darwin_libs.json")
+from apple_sdk_gen.config import PLATFORM_CONFIGS
+from apple_sdk_gen.supplements.darwin_libs import LIBRARIES
+
+TBD_FIELDS = (
+    "install-name", "targets", "current-version", "compatibility-version",
+    "flags", "reexported-libraries", "exports", "reexports", "swift-abi-version",
+)
 
 
-def load_documents(path):
-    with open(path) as f:
-        text = re.sub(r"^--- !tapi-tbd", "---", f.read(), flags=re.M)
-    return [doc for doc in yaml.safe_load_all(text) if doc]
+def load_documents(path: Path) -> list[dict]:
+    text = re.sub(r"^--- !tapi-tbd", "---", path.read_text(), flags=re.M)
+    records = []
+    for document in yaml.safe_load_all(text):
+        if document.get("tbd-version") != 4:
+            raise ValueError(f"{path} is not a TBD v4 file")
+        record = {field: document[field] for field in TBD_FIELDS if field in document}
+        for field in ("current-version", "compatibility-version"):
+            if field in record:
+                record[field] = str(record[field])
+        records.append(record)
+    return records
 
 
-def main():
-    if len(sys.argv) > 2:
-        sys.exit("usage: tools/extract-darwin-libs.py [developer dir]")
-    developer_dir = sys.argv[1] if len(sys.argv) == 2 else subprocess.check_output(["xcode-select", "-p"], text=True).strip()
-    libraries = {}
-    for platform in PLATFORMS:
-        lib_dir = os.path.join(developer_dir, "Platforms", platform + ".platform", "Developer", "SDKs", platform + ".sdk", "usr", "lib")
-        for name in FILES:
-            path = os.path.join(lib_dir, name)
-            if not os.path.exists(path):
-                print("missing " + path, file=sys.stderr)
-                continue
-            for doc in load_documents(path):
-                if doc.get("tbd-version") != 4:
-                    sys.exit(path + " is not a TBD v4 file")
-                entry = libraries.setdefault(doc["install-name"], {
-                    "current-version": str(doc.get("current-version", "")),
-                    "compatibility-version": str(doc.get("compatibility-version", "")),
-                    "flags": set(),
-                    "reexported-libraries": set(),
-                    **{key: set() for key in EXPORT_KEYS},
-                })
-                for group in doc.get("flags", []):
-                    entry["flags"].update(group.get("flags", []) if isinstance(group, dict) else [group])
-                for group in doc.get("reexported-libraries", []):
-                    entry["reexported-libraries"].update(group.get("libraries", []))
-                for section in ("exports", "reexports"):
-                    for group in doc.get(section, []):
-                        for key in EXPORT_KEYS:
-                            entry[key].update(group.get(key, []))
-    result = {}
-    for install_name in sorted(libraries):
-        entry = libraries[install_name]
-        record = {}
-        for key in ("current-version", "compatibility-version"):
-            if entry[key]:
-                record[key] = entry[key]
-        for key in ("flags", "reexported-libraries", *EXPORT_KEYS):
-            if entry[key]:
-                record[key] = sorted(entry[key])
-        result[install_name] = record
-    with open(OUTPUT, "w") as f:
-        json.dump(result, f, indent=1, sort_keys=True)
-        f.write("\n")
-    print("{} libraries, {} exports".format(len(result), sum(len(record.get(key, [])) for record in result.values() for key in EXPORT_KEYS)))
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("sdk", type=Path, help="path to an installed or generated SDK")
+    parser.add_argument("--platform", required=True, choices=PLATFORM_CONFIGS)
+    parser.add_argument("--output", type=Path, required=True, help="JSON output path")
+    args = parser.parse_args()
+    try:
+        settings = json.loads((args.sdk / "SDKSettings.json").read_text())
+        version = settings["Version"]
+        platform = PLATFORM_CONFIGS[args.platform]
+        if settings["CanonicalName"] != f"{platform.sdk_prefix.lower()}{version}":
+            raise ValueError(f"{args.sdk} does not describe a {args.platform} SDK")
+        libraries = {
+            name: load_documents(args.sdk / "usr" / "lib" / f"{name}.tbd")
+            for name in LIBRARIES
+        }
+        metadata = {"sdk_version": version, "platforms": {args.platform: libraries}}
+        args.output.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    except (KeyError, OSError, ValueError, yaml.YAMLError) as exc:
+        parser.exit(1, f"{exc}\n")
 
 
 if __name__ == "__main__":
