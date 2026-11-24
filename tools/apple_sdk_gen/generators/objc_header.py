@@ -13,6 +13,21 @@ from ..supplements.inline_functions import INLINE_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 
+# DocC's Kernel and DriverKit topics also document shared C typedefs.
+_C_TYPE_HEADERS = {
+    "c:@T@au_asid_t": "bsm/audit.h",
+    "c:@T@boolean_t": "mach/boolean.h",
+    "c:@T@mach_port_t": "mach/port.h",
+    "c:@T@size_t": "stddef.h",
+    "c:@T@va_list": "stdarg.h",
+    **{f"c:@T@{name}": "stdint.h" for name in
+       ("int8_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t")},
+    **{f"c:@T@{name}": "sys/types.h" for name in
+       ("gid_t", "mode_t", "off_t", "pid_t", "uid_t")},
+    **{f"c:@T@{name}": "CoreFoundation/CFBase.h" for name in
+       ("Boolean", "FourCharCode", "OSType", "SInt64", "UInt32", "UniChar")},
+}
+
 # Compatibility macros needed for generated headers
 COMPAT_PREAMBLE = """\
 #pragma once
@@ -391,6 +406,15 @@ def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
             identifier = token.identifier or ""
             _, _, path = identifier.partition("/documentation/")
             module = path.split("/", 1)[0]
+            header = _C_TYPE_HEADERS.get(token.precise_identifier)
+            if header and (module.casefold() in {"kernel", "driverkit"} or
+                           token.precise_identifier == "c:@T@mach_port_t"):
+                if header.partition("/")[0].casefold() != framework_name.casefold():
+                    imports.add(header)
+                continue
+            if module.casefold() == "dispatch":
+                imports.add("dispatch/dispatch.h")
+                continue
             framework = FRAMEWORK_NAME_MAPPINGS.get(module, module)
             if framework and framework.casefold() != framework_name.casefold():
                 imports.add(f"{framework}/{framework}.h")
@@ -442,9 +466,8 @@ def _render_symbol_declaration(sym: Symbol) -> str | None:
     elif avail:
         suffix = f" {avail}"
 
-    # Ensure declaration ends with semicolon if it's a simple decl
-    if not decl_text.endswith(";") and not decl_text.endswith("}"):
-        decl_text += ";"
+    if not decl_text.endswith("}"):
+        return f"{decl_text.removesuffix(';')}{suffix};"
 
     return f"{decl_text}{suffix}"
 

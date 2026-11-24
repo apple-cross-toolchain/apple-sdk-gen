@@ -229,6 +229,67 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("@protocol NSCopying;", header)
         self.assertNotIn("@class NSDictionary.Iterator;", header)
         self.assertNotIn("@protocol Publisher;", header)
+
+    async def test_imports_use_installed_c_headers(self):
+        parameters = {
+            "languages": ["occ"],
+            "tokens": [
+                {"kind": "text", "text": "void UseTypes("},
+                {"kind": "typeIdentifier", "text": "CFStringRef",
+                 "identifier": "doc://com.apple.corefoundation/documentation/corefoundation/cfstring"},
+                {"kind": "text", "text": " string, "},
+                {"kind": "typeIdentifier", "text": "dispatch_queue_t",
+                 "identifier": "doc://com.apple.dispatch/documentation/Dispatch/dispatch_queue_t"},
+                {"kind": "text", "text": " queue, "},
+                {"kind": "typeIdentifier", "text": "mach_port_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/mach_port_t",
+                 "preciseIdentifier": "c:@T@mach_port_t"},
+                {"kind": "text", "text": " port, "},
+                {"kind": "typeIdentifier", "text": "size_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/size_t",
+                 "preciseIdentifier": "c:@T@size_t"},
+                {"kind": "text", "text": " size, "},
+                {"kind": "typeIdentifier", "text": "pid_t",
+                 "identifier": "doc://com.apple.documentation/documentation/DriverKit/pid_t",
+                 "preciseIdentifier": "c:@T@pid_t"},
+                {"kind": "text", "text": " process, "},
+                {"kind": "typeIdentifier", "text": "int8_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/int8_t",
+                 "preciseIdentifier": "c:@T@int8_t"},
+                {"kind": "text", "text": " byte, "},
+                {"kind": "typeIdentifier", "text": "uint16_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/uint16_t",
+                 "preciseIdentifier": "c:@T@uint16_t"},
+                {"kind": "text", "text": " value, "},
+                {"kind": "typeIdentifier", "text": "au_asid_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/au_asid_t",
+                 "preciseIdentifier": "c:@T@au_asid_t"},
+                {"kind": "text", "text": " audit_session);"},
+            ],
+        }
+        docc = DocC({"/documentation/foundation/usetypes": page("UseTypes", "func", parameters)})
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertEqual(
+            [line for line in header.splitlines() if line.startswith("#import <")],
+            ["#import <CoreFoundation/CoreFoundation.h>", "#import <bsm/audit.h>",
+             "#import <dispatch/dispatch.h>", "#import <mach/port.h>",
+             "#import <stddef.h>", "#import <stdint.h>", "#import <sys/types.h>"],
+        )
+
+    async def test_c_function_availability_precedes_the_semicolon(self):
+        docc = DocC({
+            "/documentation/foundation/lookup": {
+                **page("Lookup", "func", declaration("void Lookup(void);", "macOS")),
+                "metadata": {"title": "Lookup", "role": "symbol", "symbolKind": "func",
+                             "platforms": [{"name": "macOS", "introducedAt": "11.0"}]},
+            },
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertIn("void Lookup(void) API_AVAILABLE(macos(11.0));", header)
         self.assertNotIn("@class MobileOnly;", header)
 
     async def test_separates_return_type_from_function_name(self):
