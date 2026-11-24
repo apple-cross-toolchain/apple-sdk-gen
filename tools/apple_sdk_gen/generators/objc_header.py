@@ -326,6 +326,10 @@ def generate_umbrella_header(
         if decl:
             lines.append(decl)
             lines.append("")
+            constants = _render_typedef_constants(sym, symbols, all_symbols)
+            if constants:
+                lines.append(constants)
+                lines.append("")
 
     for sym in groups.get("enum", []):
         enum_def = _render_enum_definition(sym, symbols, all_symbols)
@@ -480,6 +484,23 @@ def _render_interface_block(
 
     lines.append("@end")
     return "\n".join(lines)
+
+
+def _render_typedef_constants(
+    sym: Symbol, symbols: list[Symbol], all_symbols: dict[str, Symbol] | None,
+) -> str | None:
+    if not sym.children:
+        return None
+    # DocC lists the cases of some anonymous C enums under a separate typedef.
+    # Their USRs distinguish these compile-time constants from exported data.
+    constants: dict[str, str] = {}
+    for child in _find_children(sym, symbols, all_symbols):
+        case = re.fullmatch(r"c:@Ea@\w+@([A-Za-z_]\w*)", child.usr or "")
+        if case and (value := get_case_value(case[1])) is not None:
+            constants[case[1]] = value
+    if not constants:
+        return None
+    return "\n".join(["enum {", *(f"    {name} = {value}," for name, value in constants.items()), "};"])
 
 
 def _render_enum_definition(
