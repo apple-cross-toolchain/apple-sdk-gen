@@ -231,6 +231,67 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("@protocol Publisher;", header)
         self.assertNotIn("@class MobileOnly;", header)
 
+    async def test_objc_runtime_types_use_the_compat_preamble(self):
+        flag = {"languages": ["occ"], "tokens": [
+            {"kind": "text", "text": "typedef "},
+            {
+                "kind": "typeIdentifier",
+                "text": "BOOL",
+                "identifier": "doc://com.apple.documentation/documentation/ObjectiveC/BOOL",
+                "preciseIdentifier": "c:@T@BOOL",
+            },
+            {"kind": "text", "text": " Flag;"},
+        ]}
+        docc = DocC({"/documentation/foundation/flag": page("Flag", "typealias", flag)})
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+        self.assertIn("typedef BOOL Flag;", header)
+        self.assertNotIn("ObjectiveC/ObjectiveC.h", header)
+
+    @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_foreign_objc_pointer_does_not_import_its_umbrella(self):
+        image = {
+            "kind": "typeIdentifier",
+            "text": "NSImage",
+            "identifier": "doc://com.apple.appkit/documentation/AppKit/NSImage",
+            "preciseIdentifier": "c:objc(cs)NSImage",
+        }
+        signature = {"languages": ["occ"], "tokens": [
+            {"kind": "text", "text": "extern "},
+            image,
+            {"kind": "text", "text": " *copyImage(void);"},
+        ]}
+        docc = DocC({
+            "/documentation/foundation/copyimage": page("copyImage", "func", signature),
+        })
+        clang_resources = Path(subprocess.check_output(
+            [CLANG, "-print-resource-dir"], text=True,
+        ).strip())
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            framework_dir = header.parents[2]
+            for arch in ("arm64", "x86_64"):
+                with self.subTest(arch=arch):
+                    result = subprocess.run(
+                        [CLANG, "-target", f"{arch}-apple-macos11",
+                         "-ffreestanding", "-fsyntax-only", "-Werror",
+                         "-isysroot", str(header.parents[5]), "-nostdinc",
+                         "-isystem", str(clang_resources / "include"),
+                         "-F", str(framework_dir), "-x", "objective-c", "-"],
+                        input="#import <Foundation/Foundation.h>\nNSImage *image(void) { return copyImage(); }\n",
+                        text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+            docc.pages["/documentation/foundation/subimage"] = page(
+                "SubImage", "class",
+                {"languages": ["occ"], "tokens": [
+                    {"kind": "text", "text": "@interface SubImage : "}, image,
+                ]},
+            )
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            self.assertIn("#import <AppKit/AppKit.h>", header.read_text())
+
     async def test_separates_return_type_from_function_name(self):
         # DocC's CFRetain declaration has no whitespace token before CFRetain.
         retain_declaration = {
