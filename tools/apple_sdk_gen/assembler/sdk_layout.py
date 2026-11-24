@@ -22,8 +22,13 @@ from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings
 from ..generators.swiftinterface import generate_swiftinterface
 from ..generators.tbd import generate_tbd
 from ..models.symbol import Symbol
+from ..models.types import PlatformName
 
 logger = logging.getLogger(__name__)
+
+# Both paths match macOS 15.2, 15.5, 26.0 and 26.5 SDKs and the deployed
+# macOS 26.5.2 dylibs on each architecture.
+_MACOS_FRAMEWORK_VERSIONS = {"AppKit": "C", "Foundation": "C"}
 
 
 @dataclass
@@ -238,14 +243,37 @@ def _assemble_framework(
             (swift_mod_dir / f"{triple}.swiftinterface").write_text(swiftinterface)
 
     # TBD stub — use mapped name for install path, doc name for re-export lookup
-    reexports = REEXPORTS.get(framework_name) or REEXPORTS.get(doc_name)
+    reexports = REEXPORTS.get(framework_name) or REEXPORTS.get(doc_name) or []
+    version = None
+    if platform_config.name is PlatformName.MACOS:
+        version = _MACOS_FRAMEWORK_VERSIONS.get(framework_name)
+        canonical_paths = {
+            f"/System/Library/Frameworks/{name}.framework/{name}":
+            f"/System/Library/Frameworks/{name}.framework/Versions/{release}/{name}"
+            for name, release in _MACOS_FRAMEWORK_VERSIONS.items()
+        }
+        reexports = [canonical_paths.get(library, library) for library in reexports]
+
+    stub = fw_dir / f"{framework_name}.tbd"
+    install_name = None
+    if version:
+        versioned_stub = fw_dir / "Versions" / version / stub.name
+        versioned_stub.parent.mkdir(parents=True, exist_ok=True)
+        install_name = f"/System/Library/Frameworks/{versioned_stub.with_suffix('').relative_to(fw_dir.parent)}"
+
     tbd_content = generate_tbd(
         framework_name,
         symbols,
         targets=tbd_targets,
+        install_name=install_name,
         reexports=reexports,
     )
-    (fw_dir / f"{framework_name}.tbd").write_text(tbd_content)
+    if version:
+        versioned_stub.write_text(tbd_content)
+        stub.unlink(missing_ok=True)
+        stub.symlink_to(versioned_stub.relative_to(fw_dir))
+    else:
+        stub.write_text(tbd_content)
 
     logger.debug("Generated framework %s (%d symbols)", framework_name, len(symbols))
 
