@@ -61,16 +61,9 @@ def usr_to_tbd_symbols(usr: str) -> list[TBDSymbol]:
         var_name = m.group(1)
         return [TBDSymbol(f"_{var_name}", TBDSymbolKind.SYMBOL)]
 
-    # Enum: c:@E@NSComparisonResult
-    m = re.match(r"c:@E@(\w+)$", usr)
-    if m:
-        return []  # Enum type itself doesn't produce TBD symbols
-
-    # Enum constant: c:@E@NSComparisonResult@NSOrderedAscending
-    m = re.match(r"c:@E@\w+@(\w+)$", usr)
-    if m:
-        const_name = m.group(1)
-        return [TBDSymbol(f"_{const_name}", TBDSymbolKind.SYMBOL)]
+    # Enum types and their integer constants have no linker symbols.
+    if usr.startswith("c:@E@"):
+        return []
 
     # Typedef: c:@T@NSInteger
     m = re.match(r"c:@T@(\w+)$", usr)
