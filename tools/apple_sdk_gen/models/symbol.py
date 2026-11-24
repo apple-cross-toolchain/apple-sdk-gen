@@ -122,7 +122,18 @@ class Symbol:
     role: str = ""
     role_heading: str = ""
     objc_declarations: list[Declaration] = field(default_factory=list)
-    memberwise_fields: tuple[str, ...] = ()
+    memberwise_initializers: tuple[tuple[str, ...], ...] = ()
+    objc_kind: SymbolKind | None = None
+    objc_title: str | None = None
+    objc_children: list[str] | None = None
+
+    def for_objc(self) -> Symbol:
+        return replace(
+            self,
+            kind=self.objc_kind or self.kind,
+            title=self.objc_title or self.title,
+            children=self.children if self.objc_children is None else self.objc_children,
+        )
 
     def for_platform(self, platform: PlatformName) -> Symbol:
         if not self.objc_declarations:

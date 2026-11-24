@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..models.symbol import Symbol
+from ..supplements.inline_functions import CORE_GRAPHICS_INLINE_FUNCTIONS
 from ..utils.usr_parser import FrameworkTBDSymbols
 
 
@@ -27,6 +28,9 @@ def generate_tbd(
     if install_name is None:
         install_name = f"/System/Library/Frameworks/{framework_name}.framework/{framework_name}"
 
+    if framework_name == "CoreGraphics":
+        inline_usrs = {f"c:@F@{name}" for name in CORE_GRAPHICS_INLINE_FUNCTIONS}
+        symbols = [sym for sym in symbols if sym.usr not in inline_usrs]
     tbd_syms = collect_tbd_symbols(symbols)
 
     targets_str = _format_flow_list(targets)

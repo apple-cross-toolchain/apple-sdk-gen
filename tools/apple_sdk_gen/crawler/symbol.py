@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterator
+from copy import deepcopy
 
 from .client import APIClient
 from ..models.symbol import (
@@ -72,6 +73,15 @@ def _extract_declarations(data: dict, language: str) -> Iterator[Declaration]:
                 yield Declaration.from_api(decl_data)
 
 
+def _child_references(data: dict) -> Iterator[dict]:
+    references = data.get("references", {})
+    for section in data.get("topicSections", []):
+        for identifier in section.get("identifiers", []):
+            ref = references.get(identifier, {})
+            if ref.get("kind") == "symbol" and ref.get("role") == "symbol" and ref.get("url"):
+                yield ref
+
+
 async def parse_symbol(
     client: APIClient,
     doc_path: str,
@@ -109,26 +119,20 @@ async def parse_symbol(
     swift_decl = next(_extract_declarations(data, "swift"), None)
 
     # Extract ObjC declaration by applying variant overrides
-    import copy
-    objc_data = copy.deepcopy(data)
-    _apply_variant_overrides(objc_data, "occ")
+    objc_data = _apply_variant_overrides(deepcopy(data), "occ")
     objc_declarations = list(_extract_declarations(objc_data, "occ"))
+    objc_metadata = objc_data.get("metadata", {})
 
     # Collect child symbol identifiers from topicSections
     kind = SymbolKind.from_api(kind_str)
     children: list[str] = []
     memberwise_initializers: set[tuple[str, ...]] = set()
-    for section in data.get("topicSections", []):
-        for ident in section.get("identifiers", []):
-            ref = data.get("references", {}).get(ident, {})
-            if ref.get("kind") == "symbol" and ref.get("role") == "symbol":
-                child_url = ref.get("url", "")
-                if child_url:
-                    children.append(child_url)
-                    if kind == SymbolKind.STRUCT:
-                        match = re.fullmatch(r"init\(((?:[A-Za-z_]\w*:)+)\)", ref.get("title", ""))
-                        if match:
-                            memberwise_initializers.add(tuple(match[1].rstrip(":").split(":")))
+    for ref in _child_references(data):
+        children.append(ref["url"])
+        if kind == SymbolKind.STRUCT:
+            match = re.fullmatch(r"init\(((?:[A-Za-z_]\w*:)+)\)", ref.get("title", ""))
+            if match:
+                memberwise_initializers.add(tuple(match[1].rstrip(":").split(":")))
 
     symbol = Symbol(
         identifier=identifier,
@@ -139,9 +143,10 @@ async def parse_symbol(
         swift_declaration=swift_decl,
         objc_declaration=next(iter(objc_declarations), None),
         objc_declarations=objc_declarations,
-        memberwise_fields=(
-            next(iter(memberwise_initializers)) if len(memberwise_initializers) == 1 else ()
-        ),
+        objc_kind=SymbolKind.from_api(objc_metadata.get("symbolKind", kind_str)),
+        objc_title=objc_metadata.get("title"),
+        objc_children=[ref["url"] for ref in _child_references(objc_data)],
+        memberwise_initializers=tuple(sorted(memberwise_initializers)),
         availability=availability,
         relationships=relationships,
         children=children,
