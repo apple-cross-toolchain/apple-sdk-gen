@@ -254,6 +254,29 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
             header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
         self.assertIn("extern CFTypeRef CFRetain(CFTypeRef cf);", header)
 
+    @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_renders_callback_typedefs_with_names_inside_the_declarator(self):
+        docc = DocC({
+            "/documentation/foundation/callback": page(
+                "Callback", "typealias", declaration("typedef void (*)(void *, void *) Callback;"),
+            ),
+            "/documentation/foundation/handler": page(
+                "Handler", "typealias", declaration("typedef void (^)(int) Handler;"),
+            ),
+            "/documentation/foundation/already-named": page(
+                "AlreadyNamed", "typealias", declaration("typedef void (*AlreadyNamed)(void);"),
+            ),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            result = subprocess.run(
+                [CLANG, "-target", "arm64-apple-macos11", "-ffreestanding", "-fblocks",
+                 "-fsyntax-only", "-Werror", "-include", str(header), "-x", "c", "-"],
+                input="int main(void) { Callback c = 0; Handler h = 0; AlreadyNamed n = 0; return c || h || n; }",
+                text=True, capture_output=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     async def test_uses_platform_variant_before_unqualified_declaration(self):
         docc = DocC({
             "/documentation/foundation/handle": page(

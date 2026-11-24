@@ -434,6 +434,15 @@ def _render_symbol_declaration(sym: Symbol) -> str | None:
     if not decl_text:
         return None
 
+    if sym.kind == SymbolKind.TYPEALIAS:
+        # DocC can render a callback as an abstract type followed by its name.
+        decl_text = re.sub(
+            r"^(typedef\s+.*?)\(\s*([*^])\s*\)\s*(\(.*\))\s+([A-Za-z_]\w*)(;?)$",
+            r"\1(\2\4)\3\5",
+            decl_text,
+            flags=re.DOTALL,
+        )
+
     avail = availability_macro(sym)
     dep = deprecated_macro(sym)
     suffix = ""
