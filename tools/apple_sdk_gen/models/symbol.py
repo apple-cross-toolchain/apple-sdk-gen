@@ -152,7 +152,10 @@ class Symbol:
             if "(pl)" in self.usr:
                 return self.usr.split("(pl)")[-1].split("(")[0]
             if "@E@" in self.usr:
-                return self.usr.split("@E@")[-1].split("@")[0]
+                enum_name, _, case_name = self.usr.rsplit("@E@", 1)[1].partition("@")
+                if self.kind == SymbolKind.ENUM_CASE and case_name:
+                    return case_name
+                return enum_name
             if "@T@" in self.usr:
                 return self.usr.split("@T@")[-1].split("@")[0]
             if "@F@" in self.usr:
