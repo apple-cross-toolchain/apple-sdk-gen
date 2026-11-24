@@ -231,6 +231,23 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("@protocol Publisher;", header)
         self.assertNotIn("@class MobileOnly;", header)
 
+    async def test_objc_runtime_types_use_the_compat_preamble(self):
+        flag = {"languages": ["occ"], "tokens": [
+            {"kind": "text", "text": "typedef "},
+            {
+                "kind": "typeIdentifier",
+                "text": "BOOL",
+                "identifier": "doc://com.apple.documentation/documentation/ObjectiveC/BOOL",
+                "preciseIdentifier": "c:@T@BOOL",
+            },
+            {"kind": "text", "text": " Flag;"},
+        ]}
+        docc = DocC({"/documentation/foundation/flag": page("Flag", "typealias", flag)})
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+        self.assertIn("typedef BOOL Flag;", header)
+        self.assertNotIn("ObjectiveC/ObjectiveC.h", header)
+
     @unittest.skipUnless(CLANG, "requires Clang")
     async def test_foreign_objc_pointer_does_not_import_its_umbrella(self):
         image = {

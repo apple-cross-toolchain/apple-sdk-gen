@@ -13,6 +13,11 @@ from ..supplements.inline_functions import INLINE_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 
+_OBJC_PREAMBLE_TYPES = {
+    "c:@T@BOOL", "c:@T@Class", "c:@T@IMP", "c:@T@SEL", "c:@T@id",
+    "c:@T@NSInteger", "c:@T@NSUInteger",
+}
+
 # Compatibility macros needed for generated headers
 COMPAT_PREAMBLE = """\
 #pragma once
@@ -394,6 +399,8 @@ def _collect_dependencies(
             identifier = token.identifier or ""
             _, _, path = identifier.partition("/documentation/")
             module = path.split("/", 1)[0]
+            if module.casefold() == "objectivec" and token.precise_identifier in _OBJC_PREAMBLE_TYPES:
+                continue
             framework = FRAMEWORK_NAME_MAPPINGS.get(module, module)
             if not framework or framework.casefold() == framework_name.casefold():
                 continue
