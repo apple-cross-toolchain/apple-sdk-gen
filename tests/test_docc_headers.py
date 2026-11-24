@@ -93,6 +93,51 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("enum Mode : int {\n    ModeOn = 0,\n};", header)
 
     @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_orders_c_types_and_renders_array_and_enum_declarators(self):
+        root = "/documentation/foundation"
+        state_ref = {
+            "kind": "typeIdentifier", "text": "State", "preciseIdentifier": "c:@EA@State",
+        }
+        docc = DocC({
+            f"{root}/handler": page("Handler", "typealias", {"languages": ["occ"], "tokens": [
+                {"kind": "text", "text": "typedef void (^Handler)("},
+                state_ref,
+                {"kind": "text", "text": ");"},
+            ]}),
+            f"{root}/read": page("Read", "func", declaration("Point Read(void);")),
+            f"{root}/address": page("Address", "typealias",
+                                    declaration("typedef unsigned char[6] Address;")),
+            f"{root}/state": {
+                **page("State", "enum", declaration("typedef enum { ... } State;")),
+                "topicSections": [{"identifiers": ["idle"]}],
+                "references": {"idle": {"kind": "symbol", "role": "symbol",
+                                        "url": f"{root}/state/idle"}},
+            },
+            f"{root}/state/idle": page("StateIdle", "case", declaration("StateIdle = 7")),
+            f"{root}/point": page("Point", "struct", declaration("typedef struct Point { int x; } Point;")),
+            f"{root}/error": page("Error", "enum", declaration("enum Error : int;")),
+            f"{root}/opaque": page("Opaque", "enum", declaration("typedef enum { ... } Opaque;")),
+            f"{root}/opaque/rawvalue": page("rawValue", "property", {
+                "languages": ["swift"], "tokens": [{"kind": "text", "text": "var rawValue: Int32"}],
+            }),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            for arch in ("arm64", "x86_64"):
+                with self.subTest(arch=arch):
+                    result = subprocess.run(
+                        [CLANG, "-target", f"{arch}-apple-macos11", "-ffreestanding", "-fblocks",
+                         "-fsyntax-only", "-Werror", "-include", str(header), "-x", "c", "-"],
+                        input=('_Static_assert(sizeof(Address) == 6, "array");\n'
+                               '_Static_assert(StateIdle == 7, "explicit enum value");\n'
+                               '_Static_assert(sizeof(Opaque) == 4, "raw enum width");\n'
+                               '_Static_assert(sizeof(Read()) == sizeof(int), "record return");\n'
+                               'Error error;\n'),
+                        text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(CLANG, "requires Clang")
     async def test_cf_linkage_macros_match_the_source_language(self):
         docc = DocC(address_pages("init(code:number:)"))
         source = (
@@ -118,11 +163,15 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
     async def test_crawler_discovers_objc_only_exports(self):
         root = "/documentation/corefoundation"
         type_path = f"{root}/cftyperef"
+        foreign = "/documentation/security/secrelease"
         names = {"cfgettypeid": "CFGetTypeID", "cfretain": "CFRetain", "cfrelease": "CFRelease"}
         docc = DocC({
             root: {
-                "topicSections": [{"identifiers": ["type"]}],
-                "references": {"type": {"kind": "symbol", "role": "symbol", "url": type_path}},
+                "topicSections": [{"identifiers": ["type", "foreign"]}],
+                "references": {
+                    "type": {"kind": "symbol", "role": "symbol", "url": type_path},
+                    "foreign": {"kind": "symbol", "role": "symbol", "url": foreign},
+                },
             },
             type_path: {
                 **page("CFTypeRef", "typealias", declaration("typedef const void *CFTypeRef;")),
@@ -140,6 +189,7 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
                     }],
                 }],
             },
+            foreign: page("SecRelease", "func", declaration("void SecRelease(void);")),
             **{
                 f"{root}/{path}": {"metadata": {
                     "title": name, "role": "symbol", "symbolKind": "func", "externalID": f"c:@F@{name}",
@@ -157,6 +207,7 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
 
         for name in names.values():
             self.assertIn(f"_{name}", exports)
+        self.assertNotIn(foreign, paths)
 
     async def test_imports_follow_objc_type_references(self):
         nsstring = {

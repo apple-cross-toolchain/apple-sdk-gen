@@ -10,6 +10,14 @@ from .technologies import FrameworkInfo
 
 logger = logging.getLogger(__name__)
 
+# Apple's CoreGraphics CGGeometry and transform topics link to these C
+# declarations in the CoreFoundation documentation collection.
+_CG_GEOMETRY_TOPICS = tuple(
+    f"/documentation/corefoundation/{name}"
+    for name in ("cgpoint", "cgsize", "cgrect", "cgrectedge", "cgvector",
+                 "cgaffinetransform", "cgaffinetransformcomponents")
+)
+
 
 def _topic_paths(data: dict) -> list[str]:
     paths: list[str] = []
@@ -37,6 +45,10 @@ async def crawl_framework_symbols(
     symbol_paths_set: set[str] = set()
     visited: set[str] = set()
     queue: list[str] = [framework.doc_path]
+    roots = (framework.doc_path.lower().rstrip("/"),)
+    if roots[0] == "/documentation/coregraphics":
+        roots += _CG_GEOMETRY_TOPICS
+        queue.extend(_CG_GEOMETRY_TOPICS)
 
     async def process_page(doc_path: str) -> list[str]:
         data = await client.fetch_doc(doc_path)
@@ -55,7 +67,12 @@ async def crawl_framework_symbols(
         if framework.has_objc and data.get("variantOverrides"):
             objc_data = _apply_variant_overrides(deepcopy(data), "occ")
             paths.extend(_topic_paths(objc_data))
-        return list(dict.fromkeys(paths))
+        # A topic can link to a symbol owned by a foreign framework. Its
+        # declaration and exports belong to that framework's own crawl.
+        return list(dict.fromkeys(
+            path for path in paths
+            if any(path.lower() == root or path.lower().startswith(root + "/") for root in roots)
+        ))
 
     # BFS through the framework's documentation tree
     while queue:

@@ -122,7 +122,7 @@ class Symbol:
     role: str = ""
     role_heading: str = ""
     objc_declarations: list[Declaration] = field(default_factory=list)
-    memberwise_fields: tuple[str, ...] = ()
+    memberwise_initializers: tuple[tuple[str, ...], ...] = ()
     objc_kind: SymbolKind | None = None
     objc_title: str | None = None
     objc_children: list[str] | None = None

@@ -146,9 +146,7 @@ async def parse_symbol(
         objc_kind=SymbolKind.from_api(objc_metadata.get("symbolKind", kind_str)),
         objc_title=objc_metadata.get("title"),
         objc_children=[ref["url"] for ref in _child_references(objc_data)],
-        memberwise_fields=(
-            next(iter(memberwise_initializers)) if len(memberwise_initializers) == 1 else ()
-        ),
+        memberwise_initializers=tuple(sorted(memberwise_initializers)),
         availability=availability,
         relationships=relationships,
         children=children,
