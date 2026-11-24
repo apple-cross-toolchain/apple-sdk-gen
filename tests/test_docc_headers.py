@@ -62,6 +62,40 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_objc_interface_omits_related_top_level_declarations(self):
+        path = "/documentation/foundation/application"
+        member = f"{path}/run"
+        protocol = "/documentation/foundation/applicationdelegate"
+        variable = "/documentation/foundation/sharedapplication"
+        docc = DocC({
+            path: {
+                **page("Application", "class", declaration("@interface Application")),
+                "topicSections": [{"identifiers": ["delegate", "variable", "run"]}],
+                "references": {
+                    name: {"kind": "symbol", "role": "symbol", "url": url}
+                    for name, url in (("delegate", protocol), ("variable", variable), ("run", member))
+                },
+            },
+            member: page("run", "method", declaration("- (void)run;")),
+            protocol: page("ApplicationDelegate", "protocol", declaration("@protocol ApplicationDelegate")),
+            variable: page("SharedApplication", "var", declaration("extern Application *SharedApplication;")),
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            contents = header.read_text()
+            for arch in ("arm64", "x86_64"):
+                with self.subTest(arch=arch):
+                    result = subprocess.run(
+                        [CLANG, "-target", f"{arch}-apple-macos11", "-ffreestanding",
+                         "-fsyntax-only", "-Werror", "-isysroot", str(header.parents[5]),
+                         "-include", str(header), "-x", "objective-c", "-"],
+                        input="void start(void) { [SharedApplication run]; }\n",
+                        text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(contents.count("extern Application *SharedApplication;"), 1)
+
     async def test_enum_cases_use_their_own_names(self):
         path = "/documentation/contacts/cnauthorizationstatus"
         enum_name = "CNAuthorizationStatus"
