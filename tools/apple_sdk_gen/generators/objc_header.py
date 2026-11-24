@@ -391,6 +391,9 @@ def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
             identifier = token.identifier or ""
             _, _, path = identifier.partition("/documentation/")
             module = path.split("/", 1)[0]
+            if module.casefold() == "dispatch":
+                imports.add("dispatch/dispatch.h")
+                continue
             framework = FRAMEWORK_NAME_MAPPINGS.get(module, module)
             if framework and framework.casefold() != framework_name.casefold():
                 imports.add(f"{framework}/{framework}.h")
@@ -442,9 +445,8 @@ def _render_symbol_declaration(sym: Symbol) -> str | None:
     elif avail:
         suffix = f" {avail}"
 
-    # Ensure declaration ends with semicolon if it's a simple decl
-    if not decl_text.endswith(";") and not decl_text.endswith("}"):
-        decl_text += ";"
+    if not decl_text.endswith("}"):
+        return f"{decl_text.removesuffix(';')}{suffix};"
 
     return f"{decl_text}{suffix}"
 

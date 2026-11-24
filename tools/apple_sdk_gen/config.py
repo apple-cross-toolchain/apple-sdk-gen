@@ -193,6 +193,7 @@ NON_FRAMEWORK_MODULES: set[str] = {
 # Applied at SDK assembly time so the generated bundle uses the correct name.
 FRAMEWORK_NAME_MAPPINGS: dict[str, str] = {
     "PhotoKit": "Photos",
+    "corefoundation": "CoreFoundation",
     "iokit": "IOKit",
     "coreservices": "CoreServices",
     "SiriKit": "Intents",

@@ -202,6 +202,41 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("@protocol NSCopying;", header)
         self.assertNotIn("@class NSDictionary.Iterator;", header)
         self.assertNotIn("@protocol Publisher;", header)
+
+    async def test_imports_use_the_installed_corefoundation_and_dispatch_headers(self):
+        parameters = {
+            "languages": ["occ"],
+            "tokens": [
+                {"kind": "text", "text": "void UseTypes("},
+                {"kind": "typeIdentifier", "text": "CFStringRef",
+                 "identifier": "doc://com.apple.corefoundation/documentation/corefoundation/cfstring"},
+                {"kind": "text", "text": " string, "},
+                {"kind": "typeIdentifier", "text": "dispatch_queue_t",
+                 "identifier": "doc://com.apple.dispatch/documentation/Dispatch/dispatch_queue_t"},
+                {"kind": "text", "text": " queue);"},
+            ],
+        }
+        docc = DocC({"/documentation/foundation/usetypes": page("UseTypes", "func", parameters)})
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertEqual(
+            [line for line in header.splitlines() if line.startswith("#import <")],
+            ["#import <CoreFoundation/CoreFoundation.h>", "#import <dispatch/dispatch.h>"],
+        )
+
+    async def test_c_function_availability_precedes_the_semicolon(self):
+        docc = DocC({
+            "/documentation/foundation/lookup": {
+                **page("Lookup", "func", declaration("void Lookup(void);", "macOS")),
+                "metadata": {"title": "Lookup", "role": "symbol", "symbolKind": "func",
+                             "platforms": [{"name": "macOS", "introducedAt": "11.0"}]},
+            },
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols()).read_text()
+
+        self.assertIn("void Lookup(void) API_AVAILABLE(macos(11.0));", header)
         self.assertNotIn("@class MobileOnly;", header)
 
     async def test_separates_return_type_from_function_name(self):
