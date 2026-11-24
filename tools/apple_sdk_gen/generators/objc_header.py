@@ -296,8 +296,8 @@ def generate_umbrella_header(
     lines.append(COMPAT_PREAMBLE)
     lines.append("")
 
-    # Collect imports for cross-framework references
-    imports = _collect_imports(symbols, framework_name)
+    # Collect dependencies for cross-framework references.
+    imports, external_classes = _collect_dependencies(symbols, framework_name)
     for header in sorted(imports):
         lines.append(f"#import <{header}>")
     if imports:
@@ -306,8 +306,7 @@ def generate_umbrella_header(
     # Group symbols by kind for proper ordering
     groups = _group_symbols(symbols)
 
-    # Forward-declare the same Objective-C types that get definitions below.
-    forward_classes = {sym.objc_name for sym in groups.get("class", [])}
+    forward_classes = external_classes | {sym.objc_name for sym in groups.get("class", [])}
     forward_protocols = {sym.objc_name for sym in groups.get("protocol", [])}
 
     if forward_classes:
@@ -376,12 +375,16 @@ def generate_umbrella_header(
     return "\n".join(lines)
 
 
-def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
+def _collect_dependencies(
+    symbols: list[Symbol], framework_name: str,
+) -> tuple[set[str], set[str]]:
     imports: set[str] = set()
+    external_classes: set[str] = set()
     for sym in symbols:
         if sym.objc_declaration is None:
             continue
-        for token in sym.objc_declaration.tokens:
+        tokens = sym.objc_declaration.tokens
+        for index, token in enumerate(tokens):
             if token.kind != TokenKind.TYPE_IDENTIFIER:
                 continue
             # DocC indexes NSObject under ObjectiveC, but objc4 installs it here.
@@ -392,9 +395,21 @@ def _collect_imports(symbols: list[Symbol], framework_name: str) -> set[str]:
             _, _, path = identifier.partition("/documentation/")
             module = path.split("/", 1)[0]
             framework = FRAMEWORK_NAME_MAPPINGS.get(module, module)
-            if framework and framework.casefold() != framework_name.casefold():
-                imports.add(f"{framework}/{framework}.h")
-    return imports
+            if not framework or framework.casefold() == framework_name.casefold():
+                continue
+
+            # A pointer to an Objective-C class does not require its definition.
+            class_usr = re.fullmatch(r"c:objc\(cs\)([A-Za-z_]\w*)", token.precise_identifier or "")
+            if class_usr and token.text.strip() == class_usr[1]:
+                following = next(
+                    (part.text.lstrip() for part in tokens[index + 1:] if part.text.strip()),
+                    "",
+                )
+                if following.startswith("*"):
+                    external_classes.add(class_usr[1])
+                    continue
+            imports.add(f"{framework}/{framework}.h")
+    return imports, external_classes
 
 
 def _group_symbols(symbols: list[Symbol]) -> dict[str, list[Symbol]]:
