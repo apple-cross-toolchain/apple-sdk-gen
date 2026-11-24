@@ -62,6 +62,36 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    async def test_uses_objc_symbol_kinds_and_children(self):
+        root = "/documentation/foundation"
+        alias = page("Color", "class", declaration("typedef struct Color * ColorRef;"))
+        alias["variantOverrides"] = [{
+            "traits": [{"interfaceLanguage": "occ"}],
+            "patch": [{"op": "replace", "path": "/metadata/symbolKind", "value": "typealias"}],
+        }]
+        enum = page("Mode", "struct", declaration("enum Mode : int;"))
+        enum["variantOverrides"] = [{
+            "traits": [{"interfaceLanguage": "occ"}],
+            "patch": [
+                {"op": "replace", "path": "/metadata/symbolKind", "value": "enum"},
+                {"op": "replace", "path": "/topicSections", "value": [{"identifiers": ["case"]}]},
+            ],
+        }]
+        enum["references"] = {"case": {"kind": "symbol", "role": "symbol", "url": f"{root}/mode/on"}}
+        case = page("ModeOn", "var", declaration("ModeOn"))
+        case["variantOverrides"] = [{
+            "traits": [{"interfaceLanguage": "occ"}],
+            "patch": [{"op": "replace", "path": "/metadata/symbolKind", "value": "case"}],
+        }]
+        docc = DocC({f"{root}/color": alias, f"{root}/mode": enum, f"{root}/mode/on": case})
+        symbols = await docc.symbols()
+        self.assertEqual(symbols[0].kind.value, "class")
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", symbols).read_text()
+        self.assertIn("typedef struct Color * ColorRef;", header)
+        self.assertNotIn("@class Color;", header)
+        self.assertIn("enum Mode : int {\n    ModeOn = 0,\n};", header)
+
     @unittest.skipUnless(CLANG, "requires Clang")
     async def test_cf_linkage_macros_match_the_source_language(self):
         docc = DocC(address_pages("init(code:number:)"))
