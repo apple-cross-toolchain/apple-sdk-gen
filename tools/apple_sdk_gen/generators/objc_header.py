@@ -470,7 +470,8 @@ def _render_interface_block(
         if not child.objc_declaration:
             continue
         child_decl = child.objc_declaration.render().strip()
-        if not child_decl:
+        # DocC topics also link related global types and variables.
+        if not child_decl.startswith(("-", "+", "@property")):
             continue
         child_avail = availability_macro(child)
         child_suffix = f" {child_avail}" if child_avail else ""
