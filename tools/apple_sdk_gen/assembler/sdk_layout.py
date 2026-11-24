@@ -22,6 +22,7 @@ from ..generators.sdk_metadata import generate_info_plist, generate_sdk_settings
 from ..generators.swiftinterface import generate_swiftinterface
 from ..generators.tbd import generate_tbd
 from ..models.symbol import Symbol
+from .cocoa import COCOA_IMPORTS, assemble_cocoa
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,8 @@ def assemble_sdk(
     include_swift: bool = False,
     xcode_version: str = "",
     xcode_build: str = "",
+    *,
+    include_cocoa: bool = True,
 ) -> Path:
     """Assemble a complete SDK directory structure.
 
@@ -155,6 +158,14 @@ def assemble_sdk(
         for companion in COMPANION_FRAMEWORKS.get(mapped_name, []):
             if companion not in excluded:
                 _assemble_tbd_only_framework(sdk_root, companion, tbd_targets)
+
+    if (
+        platform_key == "macos"
+        and include_cocoa
+        and "Cocoa" not in frameworks
+        and all(name in frameworks for name in COCOA_IMPORTS)
+    ):
+        assemble_cocoa(sdk_root / "System" / "Library" / "Frameworks", tbd_targets)
 
     # Emit TBD-only stubs for supplementary frameworks (no doc API entry)
     for supp_name in SUPPLEMENTARY_FRAMEWORKS:

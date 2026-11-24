@@ -65,6 +65,10 @@ python3 -m tools.apple_sdk_gen \
 First run can take up to several hours, but API responses are cached locally in
 `.cache/` so subsequent runs should be faster.
 
+The macOS SDK includes the Cocoa umbrella when Foundation, AppKit, and Core Data
+are all generated. Use `--platforms macos --frameworks Cocoa` to select those
+frameworks together, or `--exclude-frameworks Cocoa` to skip the umbrella.
+
 ## CLI options
 
 | Flag | Default | Description |
