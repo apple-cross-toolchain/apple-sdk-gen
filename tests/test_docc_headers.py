@@ -217,7 +217,15 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
                 {"kind": "typeIdentifier", "text": "mach_port_t",
                  "identifier": "doc://com.apple.documentation/documentation/kernel/mach_port_t",
                  "preciseIdentifier": "c:@T@mach_port_t"},
-                {"kind": "text", "text": " port);"},
+                {"kind": "text", "text": " port, "},
+                {"kind": "typeIdentifier", "text": "size_t",
+                 "identifier": "doc://com.apple.documentation/documentation/kernel/size_t",
+                 "preciseIdentifier": "c:@T@size_t"},
+                {"kind": "text", "text": " size, "},
+                {"kind": "typeIdentifier", "text": "pid_t",
+                 "identifier": "doc://com.apple.documentation/documentation/DriverKit/pid_t",
+                 "preciseIdentifier": "c:@T@pid_t"},
+                {"kind": "text", "text": " process);"},
             ],
         }
         docc = DocC({"/documentation/foundation/usetypes": page("UseTypes", "func", parameters)})
@@ -227,7 +235,7 @@ class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [line for line in header.splitlines() if line.startswith("#import <")],
             ["#import <CoreFoundation/CoreFoundation.h>", "#import <dispatch/dispatch.h>",
-             "#import <mach/port.h>"],
+             "#import <mach/port.h>", "#import <stddef.h>", "#import <sys/types.h>"],
         )
 
     async def test_c_function_availability_precedes_the_semicolon(self):
