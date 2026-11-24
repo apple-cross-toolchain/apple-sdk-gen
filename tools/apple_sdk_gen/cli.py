@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from .config import PLATFORM_CONFIGS
 from .generators.sdk_metadata import default_xcode_build, default_xcode_version
@@ -25,6 +26,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=str,
         required=True,
         help="SDK version (e.g., 17.0, 18.0)",
+    )
+    parser.add_argument(
+        "--darwin-library-metadata",
+        type=Path,
+        help="JSON export inventory for the requested SDK version and platforms",
     )
     parser.add_argument(
         "--output",
@@ -136,6 +142,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     if args.swift_pkg and not args.swift_version:
         parser.error("--swift-pkg requires --swift-version")
+    if args.darwin_library_metadata and args.swift_stdlib_path:
+        parser.error("--swift-stdlib-path would overwrite --darwin-library-metadata stubs")
     args.xcode_version = args.xcode_version or default_xcode_version(args.sdk_version)
     args.xcode_build = args.xcode_build or default_xcode_build(args.xcode_version)
 
