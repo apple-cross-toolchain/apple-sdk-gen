@@ -62,6 +62,29 @@ def address_pages(initializer):
 
 
 class DocCHeadersTest(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipUnless(CLANG, "requires Clang")
+    async def test_cf_linkage_macros_match_the_source_language(self):
+        docc = DocC(address_pages("init(code:number:)"))
+        source = (
+            "CF_EXTERN_C_BEGIN\n"
+            "void framework_probe(void);\n"
+            "CF_EXTERN_C_END\n"
+            "#ifdef __cplusplus\n"
+            'extern "C" void framework_probe(void);\n'
+            "#endif\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            header = assemble_header(Path(directory), "macos", await docc.symbols())
+            for language in ("c", "c++", "objective-c", "objective-c++"):
+                with self.subTest(language=language):
+                    result = subprocess.run(
+                        [CLANG, "-target", "arm64-apple-macos11", "-ffreestanding",
+                         "-fsyntax-only", "-Werror", "-include", str(header),
+                         "-x", language, "-"],
+                        input=source, text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
     async def test_crawler_discovers_objc_only_exports(self):
         root = "/documentation/corefoundation"
         type_path = f"{root}/cftyperef"
