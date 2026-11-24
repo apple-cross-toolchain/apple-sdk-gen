@@ -68,3 +68,18 @@ class DarwinLibrariesTest(unittest.TestCase):
         self.write_metadata("27.0")
         newer = select_darwin_libraries("27.0", ["macos"], self.metadata)
         self.assertIn("_new_api", newer["macos"]["libSystem.B"])
+
+    def test_macos_26_5_inventory_excludes_newer_syscalls(self):
+        metadata = Path(__file__).resolve().parents[1] / "tools/apple_sdk_gen/supplements/data/darwin_macos_26.5.json"
+        libraries = select_darwin_libraries("26.5", ["macos"], metadata)["macos"]
+        documents = yaml.safe_load_all(libraries["libSystem.B"].replace("--- !tapi-tbd", "---"))
+        symbols = set()
+        pipe_targets = set()
+        for document in documents:
+            for group in document.get("exports", []) + document.get("reexports", []):
+                names = set(group.get("symbols", []))
+                symbols.update(names)
+                if "_pipe" in names:
+                    pipe_targets.update(group["targets"])
+        self.assertEqual(pipe_targets, {"arm64-macos", "x86_64-macos"})
+        self.assertTrue({"_pipe2", "_dup3"}.isdisjoint(symbols))
